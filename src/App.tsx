@@ -1,17 +1,8 @@
-// src/App.tsx
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-import AuthPage from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Auth from "./pages/Auth";
 
 function Home() {
-  return (
-    <div className="container">
-      <h1>SST GLOBALLED — Sistema ativo</h1>
-      <small>
-        Ir para: <Link to="/auth">Login</Link>
-      </small>
-    </div>
-  );
+  return <h1>SST GLOBALLED – Sistema ativo</h1>;
 }
 
 export default function App() {
@@ -19,8 +10,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/auth" element={<AuthPage />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/auth" element={<Auth />} />
       </Routes>
     </BrowserRouter>
   );
