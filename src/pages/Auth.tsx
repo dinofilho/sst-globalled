@@ -1,57 +1,28 @@
-// src/pages/Auth.tsx
-import React, { useState } from "react";
-import { supabase } from "../lib/supabaseClient";
-import { useNavigate } from "react-router-dom";
-
-export default function AuthPage() {
-  const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [senha, setSenha] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
-
-  async function entrar(e: React.FormEvent) {
-    e.preventDefault();
-    setMsg(null);
-    setLoading(true);
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password: senha,
-    });
-
-    setLoading(false);
-
-    if (error) {
-      setMsg({ type: "err", text: error.message });
-      return;
-    }
-
-    setMsg({ type: "ok", text: "Login OK! Indo para o painel..." });
-    setTimeout(() => navigate("/dashboard"), 600);
-  }
-
+export default function Auth() {
   return (
-    <div className="container">
-      <h1>Login — SST GLOBALLED</h1>
+    <div className="auth-page">
+      <div className="auth-card">
+        <h1>Página de Login</h1>
+        <p>Entre para acessar o SST GLOBALLED</p>
 
-      <form onSubmit={entrar}>
-        <label>E-mail</label>
-        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+        <form className="auth-form">
+          <label>
+            E-mail
+            <input type="email" placeholder="seuemail@empresa.com" />
+          </label>
 
-        <label>Senha</label>
-        <input value={senha} onChange={(e) => setSenha(e.target.value)} type="password" required />
+          <label>
+            Senha
+            <input type="password" placeholder="********" />
+          </label>
 
-        <button type="submit" disabled={loading}>
-          {loading ? "Entrando..." : "Entrar"}
-        </button>
+          <button type="button">Entrar</button>
+        </form>
 
-        {msg && <div className={msg.type}>{msg.text}</div>}
-
-        <small>
-          Ainda não tem usuário? (a gente cria depois, se você quiser)
+        <small className="auth-footer">
+          Em breve: login real com Supabase.
         </small>
-      </form>
+      </div>
     </div>
   );
 }
