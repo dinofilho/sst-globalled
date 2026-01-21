@@ -1,49 +1,35 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useMemo } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+
 import { Toaster } from "@/components/ui/toaster";
-import { Sonner } from "@/components/ui/sonner";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
-import { AuthProvider } from "@/contexts/AuthContext";
-import { BusinessProvider } from "@/contexts/BusinessContext";
-import AuthErrorHandler from "@/components/AuthErrorHandler";
+import { AuthProvider } from "./hooks/useAuth";
+import { BusinessProvider } from "./hooks/useBusiness";
+import { AuthErrorHandler } from "./components/AuthErrorHandler";
 
-import Home from "@/pages/Home";
-import Auth from "@/pages/Auth";
-import SelectBusiness from "@/pages/SelectBusiness";
-import ProtectedRoute from "@/components/ProtectedRoute";
+// Páginas (ajuste se algum nome estiver diferente no seu projeto)
+import Home from "./pages/Home";
+import Auth from "./pages/Auth";
+import SelectBusiness from "./pages/SelectBusiness";
+import Dashboard from "./pages/Dashboard";
+import AdminPanel from "./pages/AdminPanel";
+import NotFound from "./pages/NotFound";
+import ValidateCertificate from "./pages/ValidateCertificate";
+import ValidateDocument from "./pages/ValidateDocument";
+import PublicAssessment from "./pages/PublicAssessment";
+import ProtectedRoute from "./components/ProtectedRoute";
 
-const queryClient = new QueryClient();
+function App() {
+  const queryClient = useMemo(() => new QueryClient(), []);
 
-export default function App() {
-  // 🔴 TESTE FORÇADO — SEM ROUTER / SEM AUTH / SEM NADA
-  if (
-    typeof window !== "undefined" &&
-    window.location.pathname === "/teste"
-  ) {
-    return (
-      <div
-        style={{
-          padding: 40,
-          fontSize: 26,
-          fontWeight: "bold",
-          color: "#00ff88",
-          background: "#000",
-          minHeight: "100vh",
-        }}
-      >
-        TESTE OK — APP CARREGOU FORA DO ROUTER
-      </div>
-    );
-  }
-
-  // 🔵 APP NORMAL
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
         <Sonner />
-
         <BrowserRouter>
           <AuthProvider>
             <BusinessProvider>
@@ -61,6 +47,34 @@ export default function App() {
                     </ProtectedRoute>
                   }
                 />
+
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute>
+                      <AdminPanel />
+                    </ProtectedRoute>
+                  }
+                />
+
+                <Route path="/validate/:code" element={<ValidateCertificate />} />
+                <Route path="/validate-doc/:code" element={<ValidateDocument />} />
+
+                <Route path="/avaliacoes" element={<PublicAssessment />} />
+                <Route path="/avaliações" element={<PublicAssessment />} />
+                <Route path="/avaliacao" element={<PublicAssessment />} />
+                <Route path="/avaliação" element={<PublicAssessment />} />
+
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </BusinessProvider>
           </AuthProvider>
@@ -69,3 +83,5 @@ export default function App() {
     </QueryClientProvider>
   );
 }
+
+export default App;
