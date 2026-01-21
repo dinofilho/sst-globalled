@@ -44,7 +44,8 @@ const App = () => {
           <AuthProvider>
             <BusinessProvider>
               <AuthErrorHandler />
-              <Routes><Route path="/teste" element={<div style={{ padding: 20 }}>TESTE OK</div>} />
+              <Routes>
+                <Route path="/teste" element={<div style={{ padding: 20 }}>TESTE OK</div>} />
                 <Route path="/" element={<Home />} />
                 <Route path="/auth" element={<Auth />} />
 
