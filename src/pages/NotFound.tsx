@@ -1,50 +1,53 @@
-import { useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 
-const NotFound = () => {
-  const location = useLocation();
-
-  useEffect(() => {
-    const pathname = location.pathname || "";
-    const normalized = pathname.normalize('NFC').toLowerCase();
-
-    // Forçar domínio público acessível quando estiver em pré-visualização
-    const host = window.location.hostname;
-    if (host.startsWith("id-preview--") && host.endsWith(".lovable.app")) {
-      const targetHost = host.replace("id-preview--", "").replace(".lovable.app", ".lovableproject.com");
-      const newUrl = `${window.location.protocol}//${targetHost}${window.location.pathname}${window.location.search}`;
-      window.location.replace(newUrl);
-      return;
-    }
-
-    // Redireciona automaticamente variações/erros de digitação de "avaliação"
-    if (normalized.startsWith("/avalia")) {
-      // preserva parâmetros, ex: ?nr=NR-20
-      window.location.replace(`/avaliacoes${location.search || ""}`);
-      return;
-    }
-
-    // Redireciona padrões como /nr-12 ou /nr12 para a rota pública
-    const nrMatch = normalized.match(/^\/nr[-\s]?(\d+)$/i);
-    if (nrMatch) {
-      window.location.replace(`/avaliacoes?nr=NR-${nrMatch[1]}`);
-      return;
-    }
-
-    console.error("404 Error: User attempted to access non-existent route:", location.pathname);
-  }, [location.pathname, location.search]);
+export default function NotFound() {
+  const navigate = useNavigate();
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">404</h1>
-        <p className="mb-4 text-xl text-gray-600">Oops! Page not found</p>
-        <a href="/" className="text-blue-500 underline hover:text-blue-700">
-          Return to Home
-        </a>
+    <div style={styles.page}>
+      <div style={styles.card}>
+        <h1 style={styles.h1}>404</h1>
+        <p style={styles.p}>Página não encontrada.</p>
+        <button style={styles.btn} onClick={() => navigate("/")}>
+          Voltar para Home
+        </button>
       </div>
     </div>
   );
-};
+}
 
-export default NotFound;
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    background: "#0b0b0b",
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    fontFamily: "Arial, Helvetica, sans-serif",
+  },
+  card: {
+    width: "100%",
+    maxWidth: 520,
+    border: "1px solid #222",
+    background: "#111",
+    borderRadius: 16,
+    padding: 18,
+    textAlign: "center",
+  },
+  h1: { margin: 0, fontSize: 42, fontWeight: 900 },
+  p: { marginTop: 10, color: "#cfcfcf" },
+  btn: {
+    marginTop: 16,
+    width: "100%",
+    padding: "14px 14px",
+    borderRadius: 12,
+    border: "none",
+    background: "#00c853",
+    color: "#0b0b0b",
+    fontWeight: 900,
+    cursor: "pointer",
+    fontSize: 16,
+  },
+};
