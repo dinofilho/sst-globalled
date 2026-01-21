@@ -34,7 +34,12 @@ const App = () => {
       console.log("VITE_SUPABASE_URL:", import.meta.env.VITE_SUPABASE_URL);
     })();
   }, []);
+function App() {
+  if (typeof window !== "undefined" && window.location.pathname === "/teste") {
+    return <div style={{ padding: 20, fontSize: 24 }}>TESTE OK (SEM ROUTER / SEM AUTH)</div>;
+  }
 
+  
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
