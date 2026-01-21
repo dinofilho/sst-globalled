@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 type Company = {
@@ -45,7 +45,7 @@ export default function Companies() {
     load();
   }, []);
 
-  async function addCompany(e: React.FormEvent) {
+  async function addCompany(e: FormEvent) {
     e.preventDefault();
     setError(null);
 
