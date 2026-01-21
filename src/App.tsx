@@ -1,10 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-
 import Home from "@/pages/Home";
-import Auth from "@/pages/Auth";
-import Dashboard from "@/pages/Dashboard";
 import Companies from "@/pages/Companies";
-import NotFound from "@/pages/NotFound";
+import Employees from "@/pages/Employees";
 
 export default function App() {
   return (
@@ -12,12 +9,12 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Home />} />
 
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        {/* Admin */}
         <Route path="/companies" element={<Companies />} />
+        <Route path="/employees" element={<Employees />} />
 
-        <Route path="/404" element={<NotFound />} />
-        <Route path="*" element={<Navigate to="/404" replace />} />
+        {/* se alguém digitar rota errada */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
