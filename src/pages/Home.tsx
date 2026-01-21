@@ -5,57 +5,39 @@ export default function Home() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.box}>
+      <div style={styles.wrap}>
         <h1 style={styles.h1}>SST GLOBALLED</h1>
-
         <p style={styles.p}>
-          Plataforma inteligente de <b>Gestão de Saúde e Segurança do Trabalho</b>,
-          integrada ao <b>eSocial</b>.
+          Painel ADMIN para cadastrar Empresas e Colaboradores.
+          (Somente você usa — clientes não precisam acessar.)
         </p>
 
-        <ul style={styles.ul}>
-          <li>✅ Gestão de documentos SST</li>
-          <li>✅ Controle de NR (NR-01, NR-10, NR-20, NR-35)</li>
-          <li>✅ Auditorias e fiscalizações</li>
-          <li>✅ Base pronta para integração com eSocial</li>
-        </ul>
+        <div style={styles.grid}>
+          <button style={styles.btn} onClick={() => nav("/companies")}>
+            Empresas (Cadastrar / Listar)
+          </button>
 
-        <button style={styles.btn} onClick={() => nav("/companies")}>
-          Entrar no Sistema
-        </button>
+          <button style={styles.btn} onClick={() => nav("/employees")}>
+            Colaboradores (Cadastrar / Importar CSV)
+          </button>
+        </div>
 
-        <button style={styles.btnGhost} onClick={() => nav("/auth")}>
-          Login / Cadastro
-        </button>
+        <p style={styles.small}>
+          Dica: abra direto: <b>/companies</b> e <b>/employees</b>
+        </p>
       </div>
     </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#0b0b0b",
-    color: "#fff",
-    display: "grid",
-    placeItems: "center",
-    padding: 16,
-    fontFamily: "Arial, Helvetica, sans-serif",
-  },
-  box: {
-    width: "100%",
-    maxWidth: 640,
-    border: "1px solid #222",
-    background: "#111",
-    borderRadius: 16,
-    padding: 18,
-  },
-  h1: { margin: 0, fontSize: 34, letterSpacing: 1 },
-  p: { marginTop: 10, color: "#cfcfcf", lineHeight: 1.6 },
-  ul: { marginTop: 12, color: "#cfcfcf", lineHeight: 1.8 },
+  page: { minHeight: "100vh", background: "#0b0b0b", color: "#fff", padding: 16, fontFamily: "Arial" },
+  wrap: { maxWidth: 920, margin: "0 auto", display: "grid", gap: 14 },
+  h1: { margin: "10px 0 0", fontSize: 34, letterSpacing: 1 },
+  p: { margin: 0, color: "#cfcfcf", lineHeight: 1.6 },
+  small: { margin: 0, color: "#9f9f9f", fontSize: 12, lineHeight: 1.6 },
+  grid: { display: "grid", gap: 10, marginTop: 10 },
   btn: {
-    width: "100%",
-    marginTop: 14,
     padding: "14px 16px",
     borderRadius: 12,
     border: "none",
@@ -64,16 +46,5 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     cursor: "pointer",
     fontSize: 16,
-  },
-  btnGhost: {
-    width: "100%",
-    marginTop: 10,
-    padding: "12px 16px",
-    borderRadius: 12,
-    border: "1px solid #222",
-    background: "transparent",
-    color: "#cfcfcf",
-    fontWeight: 900,
-    cursor: "pointer",
   },
 };
