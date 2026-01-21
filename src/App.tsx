@@ -1,20 +1,15 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Home from "@/pages/Home";
-import Companies from "@/pages/Companies";
-import Employees from "@/pages/Employees";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Home from "./pages/Home";
+import Companies from "./pages/Companies";
+import NotFound from "./pages/NotFound";
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Home />} />
-
-        {/* Admin */}
         <Route path="/companies" element={<Companies />} />
-        <Route path="/employees" element={<Employees />} />
-
-        {/* se alguém digitar rota errada */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   );
