@@ -8,7 +8,13 @@ export default function App() {
   return (
     <HashRouter>
       <Routes>
-        <Route path="/" element={<Home />} />
+        {/* FORÇADO: ao abrir o site, entra em Empresas */}
+        <Route path="/" element={<Companies />} />
+
+        {/* Home fica em /home */}
+        <Route path="/home" element={<Home />} />
+
+        {/* Empresas também continua em /companies */}
         <Route path="/companies" element={<Companies />} />
 
         <Route path="/404" element={<NotFound />} />
