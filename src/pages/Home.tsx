@@ -19,7 +19,9 @@ export default function Home() {
         </ul>
 
         <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-          <Link to="/companies" style={styles.btn}>
+          <a href="#/companies" style={styles.btn}>
+  Abrir cadastro de Empresas
+</a>
             Abrir cadastro de Empresas
           </Link>
 
