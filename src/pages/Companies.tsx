@@ -11,16 +11,36 @@ type Company = {
   cnae?: string;
   address?: string;
   notes?: string;
-  createdAt: number;
+  createdAt: string;
 };
 
 const LS_KEY = "sst_globalled_companies_v1";
 
-function onlyDigits(v: string) {
-  return (v || "").replace(/\D/g, "");
+function safeLoad(): Company[] {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed as Company[];
+  } catch {
+    return [];
+  }
 }
 
-function formatCNPJ(v: string) {
+function safeSave(list: Company[]) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(list));
+  } catch {
+    // se o navegador bloquear, só ignora sem quebrar a tela
+  }
+}
+
+function onlyDigits(v: string) {
+  return v.replace(/\D+/g, "");
+}
+
+function maskCnpj(v: string) {
   const d = onlyDigits(v).slice(0, 14);
   const p1 = d.slice(0, 2);
   const p2 = d.slice(2, 5);
@@ -35,149 +55,10 @@ function formatCNPJ(v: string) {
   return out;
 }
 
-function formatPhone(v: string) {
-  const d = onlyDigits(v).slice(0, 11);
-  if (d.length <= 2) return d;
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-}
-
-function readCompanies(): Company[] {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed as Company[];
-  } catch {
-    return [];
-  }
-}
-
-function saveCompanies(list: Company[]) {
-  localStorage.setItem(LS_KEY, JSON.stringify(list));
-}
-
-const styles = {
-  page: {
-    minHeight: "100vh",
-    background: "#000",
-    color: "#fff",
-    padding: "28px 16px",
-    display: "flex",
-    justifyContent: "center",
-  } as const,
-  container: {
-    width: "100%",
-    maxWidth: 760,
-  } as const,
-  card: {
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 18,
-    padding: 18,
-    background: "linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))",
-    boxShadow: "0 10px 30px rgba(0,0,0,0.35)",
-  } as const,
-  title: {
-    fontSize: 34,
-    margin: 0,
-    letterSpacing: 1,
-    fontWeight: 800,
-  } as const,
-  subtitle: {
-    marginTop: 8,
-    opacity: 0.75,
-    lineHeight: 1.35,
-  } as const,
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "1fr",
-    gap: 12,
-    marginTop: 16,
-  } as const,
-  row2: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: 12,
-  } as const,
-  label: { fontSize: 13, opacity: 0.8, marginBottom: 6 } as const,
-  input: {
-    width: "100%",
-    padding: "12px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(0,0,0,0.35)",
-    color: "#fff",
-    outline: "none",
-  } as const,
-  textarea: {
-    width: "100%",
-    padding: "12px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.14)",
-    background: "rgba(0,0,0,0.35)",
-    color: "#fff",
-    outline: "none",
-    minHeight: 90,
-    resize: "vertical" as const,
-  },
-  actions: {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap" as const,
-    marginTop: 14,
-  },
-  btnGreen: {
-    padding: "12px 16px",
-    borderRadius: 12,
-    border: "1px solid rgba(34,197,94,0.45)",
-    background: "rgba(34,197,94,0.18)",
-    color: "#fff",
-    fontWeight: 800,
-    cursor: "pointer",
-  } as const,
-  btnGhost: {
-    padding: "12px 16px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.18)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#fff",
-    fontWeight: 800,
-    cursor: "pointer",
-  } as const,
-  hr: {
-    height: 1,
-    background: "rgba(255,255,255,0.10)",
-    border: 0,
-    margin: "18px 0",
-  } as const,
-  listTitle: { fontSize: 18, margin: 0, opacity: 0.9 } as const,
-  item: {
-    border: "1px solid rgba(255,255,255,0.10)",
-    borderRadius: 14,
-    padding: 12,
-    background: "rgba(255,255,255,0.03)",
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 10,
-    alignItems: "center",
-  } as const,
-  small: { fontSize: 12, opacity: 0.7 } as const,
-  danger: {
-    padding: "10px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(239,68,68,0.35)",
-    background: "rgba(239,68,68,0.12)",
-    color: "#fff",
-    fontWeight: 800,
-    cursor: "pointer",
-  } as const,
-};
-
 export default function Companies() {
-  const navigate = useNavigate();
+  const nav = useNavigate();
 
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [name, setName] = useState("");
   const [cnpj, setCnpj] = useState("");
   const [email, setEmail] = useState("");
@@ -187,18 +68,17 @@ export default function Companies() {
   const [address, setAddress] = useState("");
   const [notes, setNotes] = useState("");
 
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [msg, setMsg] = useState<string>("");
 
   useEffect(() => {
-    setCompanies(readCompanies());
+    setCompanies(safeLoad());
   }, []);
 
   const canSave = useMemo(() => {
     return name.trim().length >= 2 && onlyDigits(cnpj).length === 14;
   }, [name, cnpj]);
 
-  function clearForm() {
+  function resetForm() {
     setName("");
     setCnpj("");
     setEmail("");
@@ -209,199 +89,208 @@ export default function Companies() {
     setNotes("");
   }
 
-  function onSave() {
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
     setMsg("");
 
-    if (!canSave) {
-      setMsg("⚠️ Preencha Empresa e CNPJ corretamente (14 dígitos).");
+    const cleanCnpj = onlyDigits(cnpj);
+    if (name.trim().length < 2) {
+      setMsg("⚠️ Informe o nome da empresa.");
+      return;
+    }
+    if (cleanCnpj.length !== 14) {
+      setMsg("⚠️ CNPJ incompleto. Digite 14 números.");
       return;
     }
 
-    const now = Date.now();
-    const item: Company = {
-      id: String(now),
+    const newCompany: Company = {
+      id: crypto?.randomUUID?.() ?? String(Date.now()),
       name: name.trim(),
-      cnpj: formatCNPJ(cnpj),
+      cnpj: maskCnpj(cleanCnpj),
       email: email.trim() || undefined,
       phone: phone.trim() || undefined,
       responsible: responsible.trim() || undefined,
       cnae: cnae.trim() || undefined,
       address: address.trim() || undefined,
       notes: notes.trim() || undefined,
-      createdAt: now,
+      createdAt: new Date().toISOString(),
     };
 
-    const next = [item, ...companies];
+    const next = [newCompany, ...companies];
     setCompanies(next);
-    saveCompanies(next);
-    setMsg("✅ Empresa cadastrada e salva no navegador (LocalStorage).");
-    clearForm();
+    safeSave(next);
+    resetForm();
+    setMsg("✅ Empresa salva no navegador (LocalStorage).");
   }
 
-  function onRemove(id: string) {
+  function remove(id: string) {
     const next = companies.filter((c) => c.id !== id);
     setCompanies(next);
-    saveCompanies(next);
-    setMsg("🗑️ Empresa removida.");
+    safeSave(next);
   }
 
-  function onClearAll() {
-    setCompanies([]);
-    saveCompanies([]);
-    setMsg("🧹 Lista zerada.");
-  }
+  const page = {
+    minHeight: "100vh",
+    background: "#000",
+    color: "#fff",
+    padding: 16,
+    fontFamily: "serif",
+  } as const;
+
+  const card = {
+    maxWidth: 520,
+    margin: "0 auto",
+    border: "1px solid rgba(255,255,255,0.18)",
+    borderRadius: 16,
+    padding: 18,
+    background: "rgba(255,255,255,0.03)",
+    boxShadow: "0 12px 35px rgba(0,0,0,0.6)",
+  } as const;
+
+  const label = { display: "block", marginTop: 12, marginBottom: 6, opacity: 0.9 } as const;
+
+  const input = {
+    width: "100%",
+    padding: "12px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.16)",
+    background: "rgba(255,255,255,0.06)",
+    color: "#fff",
+    outline: "none",
+  } as const;
+
+  const btn = {
+    width: "100%",
+    padding: "14px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(0,255,120,0.25)",
+    background: "linear-gradient(180deg, #0b3d1a, #063112)",
+    color: "#fff",
+    fontWeight: 800,
+    fontSize: 18,
+    cursor: "pointer",
+  } as const;
+
+  const btnGhost = {
+    width: "100%",
+    padding: "12px 12px",
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.18)",
+    background: "transparent",
+    color: "#fff",
+    fontWeight: 700,
+    cursor: "pointer",
+    marginTop: 10,
+  } as const;
 
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
-        <div style={styles.card}>
-          <h1 style={styles.title}>Cadastro de Empresas</h1>
-          <div style={styles.subtitle}>
-            Salva localmente no seu navegador (LocalStorage). Depois a gente integra com banco (Supabase/Firebase).
-          </div>
+    <div style={page}>
+      <div style={card}>
+        <h1 style={{ margin: 0, fontSize: 30 }}>Cadastro de Empresas</h1>
+        <p style={{ marginTop: 6, opacity: 0.7 }}>
+          Salva localmente no navegador (LocalStorage). Depois integra com banco (Supabase/Firebase).
+        </p>
 
-          <div style={styles.grid}>
-            <div>
-              <div style={styles.label}>Empresa *</div>
-              <input
-                style={styles.input}
-                placeholder="Ex: GLOBALLED SST"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
+        <form onSubmit={onSubmit}>
+          <label style={label}>Empresa *</label>
+          <input
+            style={input}
+            placeholder="Ex: GLOBALLED SST"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
 
-            <div style={styles.row2}>
-              <div>
-                <div style={styles.label}>CNPJ *</div>
-                <input
-                  style={styles.input}
-                  placeholder="00.000.000/0000-00"
-                  value={cnpj}
-                  onChange={(e) => setCnpj(formatCNPJ(e.target.value))}
-                  inputMode="numeric"
-                />
-              </div>
+          <label style={label}>CNPJ *</label>
+          <input
+            style={input}
+            placeholder="00.000.000/0000-00"
+            value={cnpj}
+            onChange={(e) => setCnpj(maskCnpj(e.target.value))}
+            inputMode="numeric"
+          />
 
-              <div>
-                <div style={styles.label}>Telefone</div>
-                <input
-                  style={styles.input}
-                  placeholder="(11) 99999-9999"
-                  value={phone}
-                  onChange={(e) => setPhone(formatPhone(e.target.value))}
-                  inputMode="numeric"
-                />
-              </div>
-            </div>
+          <label style={label}>E-mail</label>
+          <input style={input} placeholder="contato@empresa.com.br" value={email} onChange={(e) => setEmail(e.target.value)} />
 
-            <div style={styles.row2}>
-              <div>
-                <div style={styles.label}>E-mail</div>
-                <input
-                  style={styles.input}
-                  placeholder="contato@empresa.com.br"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
+          <label style={label}>Telefone</label>
+          <input style={input} placeholder="(11) 99999-9999" value={phone} onChange={(e) => setPhone(e.target.value)} />
 
-              <div>
-                <div style={styles.label}>Responsável</div>
-                <input
-                  style={styles.input}
-                  placeholder="Nome do responsável"
-                  value={responsible}
-                  onChange={(e) => setResponsible(e.target.value)}
-                />
-              </div>
-            </div>
+          <label style={label}>Responsável</label>
+          <input style={input} placeholder="Nome do responsável" value={responsible} onChange={(e) => setResponsible(e.target.value)} />
 
-            <div style={styles.row2}>
-              <div>
-                <div style={styles.label}>CNAE</div>
-                <input
-                  style={styles.input}
-                  placeholder="Ex: 4120-4/00"
-                  value={cnae}
-                  onChange={(e) => setCnae(e.target.value)}
-                />
-              </div>
+          <label style={label}>CNAE</label>
+          <input style={input} placeholder="Ex: 4120-4/00" value={cnae} onChange={(e) => setCnae(e.target.value)} />
 
-              <div>
-                <div style={styles.label}>Endereço</div>
-                <input
-                  style={styles.input}
-                  placeholder="Rua, número, cidade - UF"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                />
-              </div>
-            </div>
+          <label style={label}>Endereço</label>
+          <input style={input} placeholder="Rua, número, cidade - UF" value={address} onChange={(e) => setAddress(e.target.value)} />
 
-            <div>
-              <div style={styles.label}>Observações</div>
-              <textarea
-                style={styles.textarea}
-                placeholder="Observações internas..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </div>
+          <label style={label}>Observações</label>
+          <input style={input} placeholder="Opcional" value={notes} onChange={(e) => setNotes(e.target.value)} />
 
-            {msg ? (
-              <div style={{ marginTop: 6, opacity: 0.9, fontSize: 13 }}>{msg}</div>
-            ) : null}
+          <div style={{ marginTop: 14 }}>
+            <button style={{ ...btn, opacity: canSave ? 1 : 0.55 }} disabled={!canSave} type="submit">
+              Salvar Empresa
+            </button>
 
-            <div style={styles.actions}>
-              <button style={styles.btnGreen} onClick={onSave}>
-                Salvar Empresa
-              </button>
-              <button style={styles.btnGhost} onClick={clearForm}>
-                Limpar
-              </button>
-              <button style={styles.btnGhost} onClick={() => navigate("/")}>
-                ← Voltar Home
-              </button>
-            </div>
-          </div>
-
-          <hr style={styles.hr} />
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-            <h3 style={styles.listTitle}>Empresas salvas</h3>
-            <button style={styles.danger} onClick={onClearAll} title="Remove todas">
-              Limpar tudo
+            <button type="button" style={btnGhost} onClick={() => nav("/")}>
+              Voltar para Home
             </button>
           </div>
 
-          <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-            {companies.length === 0 ? (
-              <div style={{ opacity: 0.65, fontSize: 13 }}>
-                Nenhuma empresa salva ainda. Cadastre a primeira acima.
-              </div>
-            ) : (
-              companies.map((c) => (
-                <div key={c.id} style={styles.item}>
-                  <div>
-                    <div style={{ fontWeight: 900 }}>{c.name}</div>
-                    <div style={styles.small}>
-                      CNPJ: {c.cnpj}
-                      {c.email ? ` • ${c.email}` : ""}
-                      {c.phone ? ` • ${c.phone}` : ""}
+          {msg ? (
+            <div style={{ marginTop: 12, opacity: 0.9 }}>
+              {msg}
+            </div>
+          ) : null}
+        </form>
+
+        <div style={{ marginTop: 18 }}>
+          <h2 style={{ margin: "10px 0", fontSize: 18, opacity: 0.9 }}>Empresas salvas ({companies.length})</h2>
+
+          {companies.length === 0 ? (
+            <div style={{ opacity: 0.6 }}>Nenhuma empresa cadastrada ainda.</div>
+          ) : (
+            <div style={{ display: "grid", gap: 10 }}>
+              {companies.map((c) => (
+                <div
+                  key={c.id}
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 12,
+                    padding: 12,
+                    background: "rgba(255,255,255,0.03)",
+                  }}
+                >
+                  <div style={{ fontWeight: 800 }}>{c.name}</div>
+                  <div style={{ opacity: 0.8, marginTop: 4 }}>{c.cnpj}</div>
+                  {(c.email || c.phone) ? (
+                    <div style={{ opacity: 0.7, marginTop: 6 }}>
+                      {c.email ? <div>{c.email}</div> : null}
+                      {c.phone ? <div>{c.phone}</div> : null}
                     </div>
-                  </div>
-                  <button style={styles.danger} onClick={() => onRemove(c.id)}>
+                  ) : null}
+
+                  <button
+                    type="button"
+                    onClick={() => remove(c.id)}
+                    style={{
+                      marginTop: 10,
+                      width: "100%",
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      border: "1px solid rgba(255,255,255,0.18)",
+                      background: "transparent",
+                      color: "#fff",
+                      cursor: "pointer",
+                      opacity: 0.9,
+                    }}
+                  >
                     Remover
                   </button>
                 </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div style={{ marginTop: 14, opacity: 0.6, fontSize: 12, textAlign: "center" }}>
-          SST GLOBALLED • Deploy Vercel
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
