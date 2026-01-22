@@ -1,228 +1,194 @@
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import React, { useEffect, useMemo, useState } from "react";
 
-type Company = { id: string; name: string };
+type Company = {
+  id: string;
+  name: string;
+};
+
 type Employee = {
   id: string;
-  company_id: string;
+  companyId: string;
   name: string;
-  cpf: string | null;
-  role: string | null;
-  created_at: string;
+  cpf: string;
+  role: string;
+  sector: string;
+  admission: string;
+  notes: string;
+  createdAt: string;
+};
+
+const EMP_KEY = "sst_globalled_employees_v1";
+const COMP_KEY = "sst_globalled_companies_v1";
+
+const uid = () => Math.random().toString(16).slice(2) + Date.now().toString(16);
+const digits = (v: string) => v.replace(/\D/g, "");
+
+const formatCPF = (v: string) => {
+  const d = digits(v).slice(0, 11);
+  return d
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1-$2");
 };
 
 export default function Employees() {
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [items, setItems] = useState<Employee[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
-  const [companyId, setCompanyId] = useState("");
-  const [name, setName] = useState("");
-  const [cpf, setCpf] = useState("");
-  const [role, setRole] = useState("");
-
-  const companyMap = useMemo(() => {
-    const m = new Map<string, string>();
-    companies.forEach(c => m.set(c.id, c.name));
-    return m;
-  }, [companies]);
-
-  async function loadAll() {
-    setLoading(true);
-    setMsg(null);
-
-    const c = await supabase.from("companies").select("id,name").order("name");
-    const e = await supabase.from("employees").select("*").order("created_at", { ascending: false });
-
-    if (c.error) setMsg(c.error.message);
-    if (e.error) setMsg(e.error.message);
-
-    setCompanies((c.data as Company[]) ?? []);
-    setItems((e.data as Employee[]) ?? []);
-    setLoading(false);
-  }
+  const [form, setForm] = useState({
+    companyId: "",
+    name: "",
+    cpf: "",
+    role: "",
+    sector: "",
+    admission: "",
+    notes: "",
+  });
 
   useEffect(() => {
-    loadAll();
+    setCompanies(JSON.parse(localStorage.getItem(COMP_KEY) || "[]"));
+    setEmployees(JSON.parse(localStorage.getItem(EMP_KEY) || "[]"));
   }, []);
 
-  async function addOne(ev: React.FormEvent) {
-    ev.preventDefault();
-    setMsg(null);
+  useEffect(() => {
+    localStorage.setItem(EMP_KEY, JSON.stringify(employees));
+  }, [employees]);
 
-    if (!companyId) return setMsg("Selecione uma empresa.");
-    if (!name.trim()) return setMsg("Nome do colaborador é obrigatório.");
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase();
+    return employees.filter(e =>
+      `${e.name} ${e.cpf} ${e.role}`.toLowerCase().includes(q)
+    );
+  }, [employees, query]);
 
-    const payload = {
-      company_id: companyId,
-      name: name.trim(),
-      cpf: cpf.trim() || null,
-      role: role.trim() || null,
-    };
-
-    const res = await supabase.from("employees").insert(payload);
-    if (res.error) return setMsg(res.error.message);
-
-    setName(""); setCpf(""); setRole("");
-    await loadAll();
-    setMsg("✅ Colaborador salvo.");
+  function reset() {
+    setForm({
+      companyId: "",
+      name: "",
+      cpf: "",
+      role: "",
+      sector: "",
+      admission: "",
+      notes: "",
+    });
+    setEditing(null);
   }
 
-  async function removeOne(id: string) {
-    if (!confirm("Excluir este colaborador?")) return;
-    setMsg(null);
-    const res = await supabase.from("employees").delete().eq("id", id);
-    if (res.error) setMsg(res.error.message);
-    await loadAll();
-  }
-
-  async function importCSV(file: File) {
-    setMsg(null);
-    const text = await file.text();
-
-    // CSV: company_name, name, cpf, role
-    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    if (lines.length < 2) return setMsg("CSV vazio ou sem linhas.");
-
-    const header = lines[0].toLowerCase();
-    if (!header.includes("company") || !header.includes("name")) {
-      setMsg("Cabeçalho inválido. Use: company_name,name,cpf,role");
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.name || !form.companyId || digits(form.cpf).length !== 11) {
+      alert("Preencha empresa, nome e CPF corretamente.");
       return;
     }
 
-    const rows = lines.slice(1).map(l => l.split(",").map(x => x.trim()));
-    const payload: any[] = [];
-
-    for (const r of rows) {
-      const [company_name, emp_name, emp_cpf, emp_role] = r;
-      if (!company_name || !emp_name) continue;
-
-      const found = companies.find(c => c.name.toLowerCase() === company_name.toLowerCase());
-      if (!found) {
-        setMsg(`Empresa não encontrada no app: ${company_name}`);
-        return;
-      }
-
-      payload.push({
-        company_id: found.id,
-        name: emp_name,
-        cpf: emp_cpf || null,
-        role: emp_role || null,
-      });
+    if (editing) {
+      setEmployees(prev =>
+        prev.map(e =>
+          e.id === editing ? { ...e, ...form, cpf: formatCPF(form.cpf) } : e
+        )
+      );
+    } else {
+      setEmployees(prev => [
+        {
+          id: uid(),
+          createdAt: new Date().toISOString(),
+          ...form,
+          cpf: formatCPF(form.cpf),
+        },
+        ...prev,
+      ]);
     }
+    reset();
+  }
 
-    if (payload.length === 0) return setMsg("Nada para importar.");
+  function edit(e: Employee) {
+    setEditing(e.id);
+    setForm(e);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
-    const ins = await supabase.from("employees").insert(payload);
-    if (ins.error) return setMsg(ins.error.message);
-
-    await loadAll();
-    setMsg(`✅ Importados: ${payload.length}`);
+  function del(id: string) {
+    if (confirm("Excluir funcionário?")) {
+      setEmployees(prev => prev.filter(e => e.id !== id));
+    }
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.wrap}>
-        <h1 style={styles.h1}>Colaboradores</h1>
+    <div style={page}>
+      <div style={card}>
+        <h1>Funcionários</h1>
 
-        <div style={styles.card}>
-          <h2 style={styles.h2}>Cadastrar</h2>
+        <form onSubmit={submit} style={{ display: "grid", gap: 12 }}>
+          <select
+            value={form.companyId}
+            onChange={e => setForm({ ...form, companyId: e.target.value })}
+            style={input}
+          >
+            <option value="">Selecione a empresa *</option>
+            {companies.map(c => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
 
-          <form onSubmit={addOne} style={{ display: "grid", gap: 10 }}>
-            <label style={styles.label}>
-              <span style={styles.labelText}>Empresa *</span>
-              <select style={styles.input} value={companyId} onChange={(e) => setCompanyId(e.target.value)}>
-                <option value="">Selecione…</option>
-                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </label>
+          <input placeholder="Nome do funcionário *" value={form.name}
+            onChange={e => setForm({ ...form, name: e.target.value })} style={input} />
 
-            <label style={styles.label}>
-              <span style={styles.labelText}>Nome *</span>
-              <input style={styles.input} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: João da Silva" />
-            </label>
+          <input placeholder="CPF *" value={form.cpf}
+            onChange={e => setForm({ ...form, cpf: formatCPF(e.target.value) })} style={input} />
 
-            <label style={styles.label}>
-              <span style={styles.labelText}>CPF</span>
-              <input style={styles.input} value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" />
-            </label>
+          <input placeholder="Cargo" value={form.role}
+            onChange={e => setForm({ ...form, role: e.target.value })} style={input} />
 
-            <label style={styles.label}>
-              <span style={styles.labelText}>Função/Cargo</span>
-              <input style={styles.input} value={role} onChange={(e) => setRole(e.target.value)} placeholder="Ex: Eletricista" />
-            </label>
+          <input placeholder="Setor" value={form.sector}
+            onChange={e => setForm({ ...form, sector: e.target.value })} style={input} />
 
-            {msg && <div style={styles.msg}>{msg}</div>}
+          <input type="date" value={form.admission}
+            onChange={e => setForm({ ...form, admission: e.target.value })} style={input} />
 
-            <button style={styles.btn} type="submit">Salvar colaborador</button>
-          </form>
-        </div>
+          <textarea placeholder="Observações"
+            value={form.notes}
+            onChange={e => setForm({ ...form, notes: e.target.value })}
+            style={{ ...input, minHeight: 80 }} />
 
-        <div style={styles.card}>
-          <div style={styles.rowBetween}>
-            <h2 style={styles.h2}>Importar CSV</h2>
-            <button style={styles.btnGhost} type="button" onClick={loadAll}>Atualizar</button>
-          </div>
+          <button style={btnPrimary}>{editing ? "Salvar" : "Cadastrar"}</button>
+        </form>
+      </div>
 
-          <p style={styles.p}>
-            CSV (vírgula) com cabeçalho: <b>company_name,name,cpf,role</b>
-            <br />
-            Obs: a empresa precisa existir antes (cadastre em /companies).
-          </p>
+      <div style={card}>
+        <input
+          placeholder="Buscar funcionário..."
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          style={input}
+        />
 
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            onChange={(e) => e.target.files?.[0] && importCSV(e.target.files[0])}
-          />
-        </div>
-
-        <div style={styles.card}>
-          <h2 style={styles.h2}>Lista</h2>
-          {loading ? (
-            <div style={styles.p}>Carregando…</div>
-          ) : items.length === 0 ? (
-            <div style={styles.p}>Nenhum colaborador cadastrado.</div>
-          ) : (
-            <div style={{ display: "grid", gap: 10 }}>
-              {items.map(emp => (
-                <div key={emp.id} style={styles.item}>
-                  <div>
-                    <div style={styles.itemTitle}>{emp.name}</div>
-                    <div style={styles.itemSub}>
-                      {(companyMap.get(emp.company_id) || "Empresa?") +
-                        (emp.role ? ` • ${emp.role}` : "") +
-                        (emp.cpf ? ` • ${emp.cpf}` : "")}
-                    </div>
-                  </div>
-                  <button style={styles.btnDanger} type="button" onClick={() => removeOne(emp.id)}>Excluir</button>
-                </div>
-              ))}
+        <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+          {filtered.map(e => (
+            <div key={e.id} style={row}>
+              <div>
+                <b>{e.name}</b><br />
+                CPF: {e.cpf}<br />
+                Cargo: {e.role || "-"}
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button onClick={() => edit(e)} style={btn}>Editar</button>
+                <button onClick={() => del(e.id)} style={btnDanger}>Excluir</button>
+              </div>
             </div>
-          )}
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: "100vh", background: "#0b0b0b", color: "#fff", padding: 16, fontFamily: "Arial" },
-  wrap: { maxWidth: 980, margin: "0 auto", display: "grid", gap: 14 },
-  h1: { margin: "8px 0 0", fontSize: 26 },
-  h2: { margin: 0, fontSize: 18 },
-  p: { margin: 0, color: "#cfcfcf", lineHeight: 1.6, fontSize: 12 },
-  card: { border: "1px solid #222", background: "#111", borderRadius: 12, padding: 14 },
-  label: { display: "grid", gap: 6 },
-  labelText: { fontSize: 12, color: "#d6d6d6" },
-  input: { padding: "12px 12px", borderRadius: 10, border: "1px solid #222", background: "#0f0f0f", color: "#fff", outline: "none" },
-  btn: { padding: "12px 14px", borderRadius: 10, border: "none", background: "#00c853", color: "#0b0b0b", fontWeight: 900, cursor: "pointer" },
-  btnGhost: { padding: "10px 12px", borderRadius: 10, border: "1px solid #222", background: "transparent", color: "#cfcfcf", fontWeight: 800, cursor: "pointer" },
-  btnDanger: { padding: "10px 12px", borderRadius: 10, border: "1px solid #3a1212", background: "#1a0b0b", color: "#ffb3b3", fontWeight: 900, cursor: "pointer" },
-  rowBetween: { display: "flex", justifyContent: "space-between", alignItems: "center" },
-  item: { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", border: "1px solid #222", background: "#0f0f0f", borderRadius: 12, padding: 12 },
-  itemTitle: { fontWeight: 900, fontSize: 14 },
-  itemSub: { color: "#bdbdbd", fontSize: 12, marginTop: 4, lineHeight: 1.4 },
-  msg: { marginTop: 8, padding: 10, borderRadius: 10, border: "1px solid #222", background: "#0f0f0f", color: "#cfcfcf", fontWeight: 700 },
-};
+/* ===== estilos ===== */
+const page = { background: "#0b0b0b", minHeight: "100vh", padding: 16, color: "#fff" };
+const card = { background: "#111", borderRadius: 12, padding: 16, marginBottom: 14 };
+const input = { padding: 12, borderRadius: 10, border: "1px solid #333", background: "#0c0c0c", color: "#fff" };
+const btnPrimary = { padding: 12, background: "#0a7a33", border: "none", borderRadius: 10, color: "#fff" };
+const btn = { padding: "8px 10px", background: "#222", borderRadius: 8, color: "#fff" };
+const btnDanger = { ...btn, background: "#7a0a0a" };
+const row = { display: "flex", justifyContent: "space-between", background: "#0c0c0c", padding: 12, borderRadius: 10 };
