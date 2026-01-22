@@ -70,9 +70,21 @@ export default function Home() {
             Abrir cadastro de Empresas
           </Link>
 
-          <a href="https://wa.me/55SEUNUMEROAQUI" style={styles.btnGhost}>
-            Falar com a GLOBALLED
-          </a>
+          <Link
+  to="/companies"
+  style={{
+    display: "block",
+    padding: "16px 24px",
+    borderRadius: 12,
+    background: "#16a34a",
+    color: "#000",
+    fontWeight: 800,
+    textDecoration: "none",
+    textAlign: "center"
+  }}
+>
+  Abrir cadastro de Empresas
+</Link>
         </div>
       </div>
     </div>
