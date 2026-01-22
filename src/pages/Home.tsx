@@ -22,9 +22,7 @@ export default function Home() {
           <Link to="/companies" style={styles.btn}>
             Abrir cadastro de Empresas
           </Link>
-        </div>
-      </div>
-    <div style={styles.buttons}>
+        <div style={styles.buttons}>
   <Link to="/companies" style={styles.btn}>
     Abrir cadastro de Empresas
   </Link>
