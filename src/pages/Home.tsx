@@ -1,5 +1,3 @@
-import { Link } from "react-router-dom";
-
 export default function Home() {
   return (
     <div style={styles.page}>
@@ -18,19 +16,20 @@ export default function Home() {
           <li style={styles.li}>✅ Base preparada para integração com eSocial</li>
         </ul>
 
-        <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-  <a href="#/companies" style={styles.btn}>
-    Abrir cadastro de Empresas
-  </a>
+        <div style={{ display: "grid", gap: 12, marginTop: 18 }}>
+          {/* BOTÃO CADASTRO */}
+          <a href="#/companies" style={styles.btn}>
+            Abrir cadastro de Empresas
+          </a>
 
-  <a href="https://wa.me/55" style={styles.btnGhost}>
-    Falar com a GLOBALLED (ajuste o número)
-  </a>
-</div>
-          </Link>
-
-          <a href="https://wa.me/55" style={styles.btnGhost}>
-            Falar com a GLOBALLED (ajuste o número)
+          {/* BOTÃO WHATSAPP */}
+          <a
+            href="https://wa.me/55"
+            target="_blank"
+            rel="noreferrer"
+            style={styles.btnGhost}
+          >
+            Falar com a GLOBALLED
           </a>
         </div>
       </div>
@@ -54,26 +53,27 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #222",
     background: "#111",
     borderRadius: 14,
-    padding: 18,
+    padding: 20,
   },
   h1: { margin: 0, fontSize: 34, letterSpacing: 1 },
-  p: { marginTop: 12, marginBottom: 12, color: "#cfcfcf", lineHeight: 1.6 },
+  p: { marginTop: 12, marginBottom: 14, color: "#cfcfcf", lineHeight: 1.6 },
   ul: { margin: 0, paddingLeft: 18, color: "#cfcfcf", lineHeight: 1.9 },
   li: { marginBottom: 6 },
+
   btn: {
     textDecoration: "none",
     textAlign: "center",
-    padding: "12px 14px",
+    padding: "14px",
     borderRadius: 10,
-    border: "none",
     background: "#00c853",
     color: "#0b0b0b",
     fontWeight: 900,
   },
+
   btnGhost: {
     textDecoration: "none",
     textAlign: "center",
-    padding: "12px 14px",
+    padding: "14px",
     borderRadius: 10,
     border: "1px solid #222",
     background: "transparent",
