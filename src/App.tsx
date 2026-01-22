@@ -7,10 +7,7 @@ export default function App() {
   return (
     <HashRouter>
       <Routes>
-        {/* Página inicial */}
         <Route path="/" element={<Home />} />
-
-        {/* Cadastro de empresas */}
         <Route path="/companies" element={<Companies />} />
       </Routes>
     </HashRouter>
