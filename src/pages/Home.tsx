@@ -19,10 +19,14 @@ export default function Home() {
         </ul>
 
         <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
-          <a href="#/companies" style={styles.btn}>
-  Abrir cadastro de Empresas
-</a>
-            Abrir cadastro de Empresas
+  <a href="#/companies" style={styles.btn}>
+    Abrir cadastro de Empresas
+  </a>
+
+  <a href="https://wa.me/55" style={styles.btnGhost}>
+    Falar com a GLOBALLED (ajuste o número)
+  </a>
+</div>
           </Link>
 
           <a href="https://wa.me/55" style={styles.btnGhost}>
