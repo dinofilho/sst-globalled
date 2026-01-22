@@ -1,52 +1,37 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useState } from "react";
 
 type Company = {
   id: string;
   name: string;
   cnpj: string;
-  email?: string;
-  phone?: string;
-  responsible?: string;
-  cnae?: string;
-  address?: string;
-  notes?: string;
+  email: string;
+  phone: string;
+  responsible: string;
+  cnae: string;
+  address: string;
+  notes: string;
   createdAt: string;
 };
 
-const LS_KEY = "sst_globalled_companies_v1";
+const STORAGE_KEY = "sst_globalled_companies_v1";
 
-function safeLoad(): Company[] {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed as Company[];
-  } catch {
-    return [];
-  }
-}
-
-function safeSave(list: Company[]) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(list));
-  } catch {
-    // se o navegador bloquear, só ignora sem quebrar a tela
-  }
+function uid() {
+  return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
 function onlyDigits(v: string) {
-  return v.replace(/\D+/g, "");
+  return (v || "").replace(/\D/g, "");
 }
 
-function maskCnpj(v: string) {
-  const d = onlyDigits(v).slice(0, 14);
-  const p1 = d.slice(0, 2);
-  const p2 = d.slice(2, 5);
-  const p3 = d.slice(5, 8);
-  const p4 = d.slice(8, 12);
-  const p5 = d.slice(12, 14);
+function formatCNPJ(value: string) {
+  const v = onlyDigits(value).slice(0, 14);
+  // 00.000.000/0000-00
+  const p1 = v.slice(0, 2);
+  const p2 = v.slice(2, 5);
+  const p3 = v.slice(5, 8);
+  const p4 = v.slice(8, 12);
+  const p5 = v.slice(12, 14);
+
   let out = p1;
   if (p2) out += "." + p2;
   if (p3) out += "." + p3;
@@ -55,244 +40,482 @@ function maskCnpj(v: string) {
   return out;
 }
 
+function formatPhoneBR(value: string) {
+  const v = onlyDigits(value).slice(0, 11); // (11) 99999-9999
+  const ddd = v.slice(0, 2);
+  const p1 = v.slice(2, 7);
+  const p2 = v.slice(7, 11);
+
+  if (!ddd) return v;
+  if (v.length <= 10) {
+    // (11) 9999-9999
+    const a = v.slice(2, 6);
+    const b = v.slice(6, 10);
+    let out = `(${ddd})`;
+    if (a) out += ` ${a}`;
+    if (b) out += `-${b}`;
+    return out;
+  }
+
+  let out = `(${ddd})`;
+  if (p1) out += ` ${p1}`;
+  if (p2) out += `-${p2}`;
+  return out;
+}
+
+function loadCompanies(): Company[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed;
+  } catch {
+    return [];
+  }
+}
+
+function saveCompanies(items: Company[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+}
+
 export default function Companies() {
-  const nav = useNavigate();
-
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [name, setName] = useState("");
-  const [cnpj, setCnpj] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [responsible, setResponsible] = useState("");
-  const [cnae, setCnae] = useState("");
-  const [address, setAddress] = useState("");
-  const [notes, setNotes] = useState("");
+  const [query, setQuery] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
 
-  const [msg, setMsg] = useState<string>("");
+  const [form, setForm] = useState<Omit<Company, "id" | "createdAt">>({
+    name: "",
+    cnpj: "",
+    email: "",
+    phone: "",
+    responsible: "",
+    cnae: "",
+    address: "",
+    notes: "",
+  });
 
   useEffect(() => {
-    setCompanies(safeLoad());
+    setCompanies(loadCompanies());
   }, []);
 
-  const canSave = useMemo(() => {
-    return name.trim().length >= 2 && onlyDigits(cnpj).length === 14;
-  }, [name, cnpj]);
+  useEffect(() => {
+    saveCompanies(companies);
+  }, [companies]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return companies;
+    return companies.filter((c) => {
+      const hay =
+        `${c.name} ${c.cnpj} ${c.email} ${c.phone} ${c.responsible} ${c.cnae} ${c.address}`
+          .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [companies, query]);
 
   function resetForm() {
-    setName("");
-    setCnpj("");
-    setEmail("");
-    setPhone("");
-    setResponsible("");
-    setCnae("");
-    setAddress("");
-    setNotes("");
+    setForm({
+      name: "",
+      cnpj: "",
+      email: "",
+      phone: "",
+      responsible: "",
+      cnae: "",
+      address: "",
+      notes: "",
+    });
+    setEditingId(null);
   }
 
-  function onSubmit(e: React.FormEvent) {
+  function onChange<K extends keyof typeof form>(key: K, value: string) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function validate() {
+    if (!form.name.trim()) return "Informe o nome da empresa.";
+    const cnpjDigits = onlyDigits(form.cnpj);
+    if (cnpjDigits.length !== 14) return "CNPJ incompleto (precisa de 14 dígitos).";
+    if (form.email && !/^\S+@\S+\.\S+$/.test(form.email))
+      return "E-mail inválido.";
+    const phoneDigits = onlyDigits(form.phone);
+    if (form.phone && (phoneDigits.length < 10 || phoneDigits.length > 11))
+      return "Telefone inválido (use DDD).";
+    return null;
+  }
+
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setMsg("");
-
-    const cleanCnpj = onlyDigits(cnpj);
-    if (name.trim().length < 2) {
-      setMsg("⚠️ Informe o nome da empresa.");
-      return;
-    }
-    if (cleanCnpj.length !== 14) {
-      setMsg("⚠️ CNPJ incompleto. Digite 14 números.");
+    const err = validate();
+    if (err) {
+      alert(err);
       return;
     }
 
-    const newCompany: Company = {
-      id: crypto?.randomUUID?.() ?? String(Date.now()),
-      name: name.trim(),
-      cnpj: maskCnpj(cleanCnpj),
-      email: email.trim() || undefined,
-      phone: phone.trim() || undefined,
-      responsible: responsible.trim() || undefined,
-      cnae: cnae.trim() || undefined,
-      address: address.trim() || undefined,
-      notes: notes.trim() || undefined,
+    if (editingId) {
+      setCompanies((prev) =>
+        prev.map((c) =>
+          c.id === editingId
+            ? {
+                ...c,
+                ...form,
+                cnpj: formatCNPJ(form.cnpj),
+                phone: formatPhoneBR(form.phone),
+              }
+            : c
+        )
+      );
+      resetForm();
+      return;
+    }
+
+    const item: Company = {
+      id: uid(),
       createdAt: new Date().toISOString(),
+      ...form,
+      cnpj: formatCNPJ(form.cnpj),
+      phone: formatPhoneBR(form.phone),
     };
 
-    const next = [newCompany, ...companies];
-    setCompanies(next);
-    safeSave(next);
+    setCompanies((prev) => [item, ...prev]);
     resetForm();
-    setMsg("✅ Empresa salva no navegador (LocalStorage).");
   }
 
-  function remove(id: string) {
-    const next = companies.filter((c) => c.id !== id);
-    setCompanies(next);
-    safeSave(next);
+  function editCompany(c: Company) {
+    setEditingId(c.id);
+    setForm({
+      name: c.name,
+      cnpj: c.cnpj,
+      email: c.email,
+      phone: c.phone,
+      responsible: c.responsible,
+      cnae: c.cnae,
+      address: c.address,
+      notes: c.notes,
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  const page = {
-    minHeight: "100vh",
-    background: "#000",
-    color: "#fff",
-    padding: 16,
-    fontFamily: "serif",
-  } as const;
+  function removeCompany(id: string) {
+    if (!confirm("Excluir esta empresa?")) return;
+    setCompanies((prev) => prev.filter((c) => c.id !== id));
+    if (editingId === id) resetForm();
+  }
 
-  const card = {
-    maxWidth: 520,
-    margin: "0 auto",
-    border: "1px solid rgba(255,255,255,0.18)",
-    borderRadius: 16,
-    padding: 18,
-    background: "rgba(255,255,255,0.03)",
-    boxShadow: "0 12px 35px rgba(0,0,0,0.6)",
-  } as const;
-
-  const label = { display: "block", marginTop: 12, marginBottom: 6, opacity: 0.9 } as const;
-
-  const input = {
-    width: "100%",
-    padding: "12px 12px",
-    borderRadius: 12,
-    border: "1px solid rgba(255,255,255,0.16)",
-    background: "rgba(255,255,255,0.06)",
-    color: "#fff",
-    outline: "none",
-  } as const;
-
-  const btn = {
-    width: "100%",
-    padding: "14px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(0,255,120,0.25)",
-    background: "linear-gradient(180deg, #0b3d1a, #063112)",
-    color: "#fff",
-    fontWeight: 800,
-    fontSize: 18,
-    cursor: "pointer",
-  } as const;
-
-  const btnGhost = {
-    width: "100%",
-    padding: "12px 12px",
-    borderRadius: 14,
-    border: "1px solid rgba(255,255,255,0.18)",
-    background: "transparent",
-    color: "#fff",
-    fontWeight: 700,
-    cursor: "pointer",
-    marginTop: 10,
-  } as const;
+  function clearAll() {
+    if (!confirm("Apagar TODAS as empresas salvas neste dispositivo?")) return;
+    setCompanies([]);
+    resetForm();
+  }
 
   return (
     <div style={page}>
       <div style={card}>
-        <h1 style={{ margin: 0, fontSize: 30 }}>Cadastro de Empresas</h1>
-        <p style={{ marginTop: 6, opacity: 0.7 }}>
-          Salva localmente no navegador (LocalStorage). Depois integra com banco (Supabase/Firebase).
+        <h1 style={title}>Cadastro de Empresas</h1>
+        <p style={subtitle}>
+          Salva localmente no seu navegador (LocalStorage). Depois a gente integra com banco (Supabase/Firebase).
         </p>
 
-        <form onSubmit={onSubmit}>
-          <label style={label}>Empresa *</label>
-          <input
-            style={input}
-            placeholder="Ex: GLOBALLED SST"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-
-          <label style={label}>CNPJ *</label>
-          <input
-            style={input}
-            placeholder="00.000.000/0000-00"
-            value={cnpj}
-            onChange={(e) => setCnpj(maskCnpj(e.target.value))}
-            inputMode="numeric"
-          />
-
-          <label style={label}>E-mail</label>
-          <input style={input} placeholder="contato@empresa.com.br" value={email} onChange={(e) => setEmail(e.target.value)} />
-
-          <label style={label}>Telefone</label>
-          <input style={input} placeholder="(11) 99999-9999" value={phone} onChange={(e) => setPhone(e.target.value)} />
-
-          <label style={label}>Responsável</label>
-          <input style={input} placeholder="Nome do responsável" value={responsible} onChange={(e) => setResponsible(e.target.value)} />
-
-          <label style={label}>CNAE</label>
-          <input style={input} placeholder="Ex: 4120-4/00" value={cnae} onChange={(e) => setCnae(e.target.value)} />
-
-          <label style={label}>Endereço</label>
-          <input style={input} placeholder="Rua, número, cidade - UF" value={address} onChange={(e) => setAddress(e.target.value)} />
-
-          <label style={label}>Observações</label>
-          <input style={input} placeholder="Opcional" value={notes} onChange={(e) => setNotes(e.target.value)} />
-
-          <div style={{ marginTop: 14 }}>
-            <button style={{ ...btn, opacity: canSave ? 1 : 0.55 }} disabled={!canSave} type="submit">
-              Salvar Empresa
-            </button>
-
-            <button type="button" style={btnGhost} onClick={() => nav("/")}>
-              Voltar para Home
-            </button>
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
+          <div style={grid2}>
+            <Field
+              label="Empresa *"
+              placeholder="Ex: GLOBALLED SST"
+              value={form.name}
+              onChange={(v) => onChange("name", v)}
+            />
+            <Field
+              label="CNPJ *"
+              placeholder="00.000.000/0000-00"
+              value={form.cnpj}
+              onChange={(v) => onChange("cnpj", formatCNPJ(v))}
+            />
           </div>
 
-          {msg ? (
-            <div style={{ marginTop: 12, opacity: 0.9 }}>
-              {msg}
-            </div>
-          ) : null}
+          <div style={grid2}>
+            <Field
+              label="E-mail"
+              placeholder="contato@empresa.com.br"
+              value={form.email}
+              onChange={(v) => onChange("email", v)}
+            />
+            <Field
+              label="Telefone"
+              placeholder="(11) 99999-9999"
+              value={form.phone}
+              onChange={(v) => onChange("phone", formatPhoneBR(v))}
+            />
+          </div>
+
+          <div style={grid2}>
+            <Field
+              label="Responsável"
+              placeholder="Nome do responsável"
+              value={form.responsible}
+              onChange={(v) => onChange("responsible", v)}
+            />
+            <Field
+              label="CNAE"
+              placeholder="Ex: 4120-4/00"
+              value={form.cnae}
+              onChange={(v) => onChange("cnae", v)}
+            />
+          </div>
+
+          <Field
+            label="Endereço"
+            placeholder="Rua, número, cidade - UF"
+            value={form.address}
+            onChange={(v) => onChange("address", v)}
+          />
+
+          <TextArea
+            label="Observações"
+            placeholder="Anotações internas, detalhes de SST, PGR, PCMSO, etc."
+            value={form.notes}
+            onChange={(v) => onChange("notes", v)}
+          />
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 4 }}>
+            <button type="submit" style={editingId ? btnPrimaryAlt : btnPrimary}>
+              {editingId ? "Salvar Alteração" : "Cadastrar Empresa"}
+            </button>
+            <button type="button" onClick={resetForm} style={btn}>
+              Limpar
+            </button>
+            <button type="button" onClick={clearAll} style={btnDanger}>
+              Apagar Tudo
+            </button>
+          </div>
         </form>
+      </div>
 
-        <div style={{ marginTop: 18 }}>
-          <h2 style={{ margin: "10px 0", fontSize: 18, opacity: 0.9 }}>Empresas salvas ({companies.length})</h2>
+      <div style={card}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <h2 style={{ margin: 0 }}>Empresas</h2>
+          <span style={pill}>{companies.length} cadastradas</span>
+          <div style={{ flex: 1 }} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por nome, CNPJ, e-mail..."
+            style={search}
+          />
+        </div>
 
-          {companies.length === 0 ? (
-            <div style={{ opacity: 0.6 }}>Nenhuma empresa cadastrada ainda.</div>
+        <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
+          {filtered.length === 0 ? (
+            <div style={empty}>Nenhuma empresa encontrada.</div>
           ) : (
-            <div style={{ display: "grid", gap: 10 }}>
-              {companies.map((c) => (
-                <div
-                  key={c.id}
-                  style={{
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: 12,
-                    padding: 12,
-                    background: "rgba(255,255,255,0.03)",
-                  }}
-                >
-                  <div style={{ fontWeight: 800 }}>{c.name}</div>
-                  <div style={{ opacity: 0.8, marginTop: 4 }}>{c.cnpj}</div>
-                  {(c.email || c.phone) ? (
-                    <div style={{ opacity: 0.7, marginTop: 6 }}>
-                      {c.email ? <div>{c.email}</div> : null}
-                      {c.phone ? <div>{c.phone}</div> : null}
-                    </div>
-                  ) : null}
+            filtered.map((c) => (
+              <div key={c.id} style={row}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={rowTitle}>{c.name}</div>
+                  <div style={rowSub}>
+                    <b>CNPJ:</b> {c.cnpj}{" "}
+                    {c.cnae ? (
+                      <>
+                        • <b>CNAE:</b> {c.cnae}
+                      </>
+                    ) : null}
+                  </div>
+                  <div style={rowSub}>
+                    {c.responsible ? (
+                      <>
+                        <b>Resp.:</b> {c.responsible} •{" "}
+                      </>
+                    ) : null}
+                    {c.email ? (
+                      <>
+                        <b>E-mail:</b> {c.email} •{" "}
+                      </>
+                    ) : null}
+                    {c.phone ? (
+                      <>
+                        <b>Tel:</b> {c.phone}
+                      </>
+                    ) : null}
+                  </div>
+                  {c.address ? <div style={rowSub}><b>Endereço:</b> {c.address}</div> : null}
+                  {c.notes ? <div style={rowNotes}>{c.notes}</div> : null}
+                </div>
 
-                  <button
-                    type="button"
-                    onClick={() => remove(c.id)}
-                    style={{
-                      marginTop: 10,
-                      width: "100%",
-                      padding: "10px 12px",
-                      borderRadius: 12,
-                      border: "1px solid rgba(255,255,255,0.18)",
-                      background: "transparent",
-                      color: "#fff",
-                      cursor: "pointer",
-                      opacity: 0.9,
-                    }}
-                  >
-                    Remover
+                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                  <button onClick={() => editCompany(c)} style={btnSmall}>
+                    Editar
+                  </button>
+                  <button onClick={() => removeCompany(c.id)} style={btnSmallDanger}>
+                    Excluir
                   </button>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))
           )}
         </div>
+
+        <p style={{ marginTop: 16, fontSize: 12, opacity: 0.55 }}>
+          Dica: quando você quiser “cadastro de verdade”, a gente liga isso no banco e cada empresa vira registro
+          com login/usuários.
+        </p>
       </div>
     </div>
   );
 }
+
+/* ===== componentes simples ===== */
+
+function Field(props: {
+  label: string;
+  placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label style={labelWrap}>
+      <span style={labelText}>{props.label}</span>
+      <input
+        value={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+        placeholder={props.placeholder}
+        style={input}
+      />
+    </label>
+  );
+}
+
+function TextArea(props: {
+  label: string;
+  placeholder?: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label style={labelWrap}>
+      <span style={labelText}>{props.label}</span>
+      <textarea
+        value={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+        placeholder={props.placeholder}
+        style={{ ...input, minHeight: 90, resize: "vertical", paddingTop: 10 }}
+      />
+    </label>
+  );
+}
+
+/* ===== estilos ===== */
+
+const page: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "#0b0b0b",
+  color: "#fff",
+  padding: 16,
+  display: "grid",
+  gap: 14,
+  alignContent: "start",
+};
+
+const card: React.CSSProperties = {
+  background: "#111",
+  border: "1px solid #222",
+  borderRadius: 12,
+  padding: 16,
+  boxShadow: "0 10px 30px rgba(0,0,0,.25)",
+};
+
+const title: React.CSSProperties = { margin: 0, fontSize: 22 };
+const subtitle: React.CSSProperties = { marginTop: 6, opacity: 0.75 };
+
+const grid2: React.CSSProperties = {
+  display: "grid",
+  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+};
+
+const labelWrap: React.CSSProperties = { display: "grid", gap: 6 };
+const labelText: React.CSSProperties = { fontSize: 12, opacity: 0.75 };
+
+const input: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 12px",
+  borderRadius: 10,
+  border: "1px solid #2a2a2a",
+  background: "#0c0c0c",
+  color: "#fff",
+  outline: "none",
+};
+
+const btnBase: React.CSSProperties = {
+  padding: "12px 14px",
+  borderRadius: 10,
+  border: "1px solid #2a2a2a",
+  background: "#151515",
+  color: "#fff",
+  fontWeight: 600,
+};
+
+const btn: React.CSSProperties = { ...btnBase };
+const btnPrimary: React.CSSProperties = { ...btnBase, background: "#0a7a33", border: "none" };
+const btnPrimaryAlt: React.CSSProperties = { ...btnBase, background: "#0a6a7a", border: "none" };
+
+const btnDanger: React.CSSProperties = {
+  ...btnBase,
+  background: "#7a0a0a",
+  border: "none",
+};
+
+const search: React.CSSProperties = {
+  ...input,
+  maxWidth: 320,
+  padding: "10px 12px",
+};
+
+const pill: React.CSSProperties = {
+  fontSize: 12,
+  padding: "4px 10px",
+  border: "1px solid #2a2a2a",
+  borderRadius: 999,
+  opacity: 0.8,
+};
+
+const row: React.CSSProperties = {
+  border: "1px solid #222",
+  background: "#0c0c0c",
+  borderRadius: 12,
+  padding: 14,
+  display: "flex",
+  gap: 12,
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+};
+
+const rowTitle: React.CSSProperties = { fontWeight: 800, marginBottom: 4 };
+const rowSub: React.CSSProperties = { fontSize: 12, opacity: 0.8, lineHeight: 1.5 };
+const rowNotes: React.CSSProperties = {
+  marginTop: 8,
+  fontSize: 12,
+  opacity: 0.75,
+  borderTop: "1px dashed #222",
+  paddingTop: 8,
+};
+
+const empty: React.CSSProperties = {
+  padding: 14,
+  borderRadius: 12,
+  border: "1px dashed #333",
+  opacity: 0.7,
+};
+
+const btnSmall: React.CSSProperties = {
+  padding: "10px 12px",
+  borderRadius: 10,
+  border: "1px solid #2a2a2a",
+  background: "#151515",
+  color: "#fff",
+  fontWeight: 700,
+};
+
+const btnSmallDanger: React.CSSProperties = {
+  ...btnSmall,
+  background: "#2a0c0c",
+  border: "1px solid #4a1b1b",
+};
