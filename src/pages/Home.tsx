@@ -24,7 +24,27 @@ export default function Home() {
           </Link>
         </div>
       </div>
-    </div>
+    <div style={styles.buttons}>
+  <Link to="/companies" style={styles.btn}>
+    Abrir cadastro de Empresas
+  </Link>
+
+  <a
+    href="/#/companies"
+    style={styles.btnGhost}
+  >
+    Abrir cadastro de Empresas (fallback)
+  </a>
+
+  <a
+    href="https://wa.me/55SEUNUMEROAQUI"
+    target="_blank"
+    rel="noreferrer"
+    style={styles.btnGhost}
+  >
+    Falar com a GLOBALLED
+  </a>
+</div>
   );
 }
 
