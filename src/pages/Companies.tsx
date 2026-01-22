@@ -518,4 +518,4 @@ const btnSmallDanger: React.CSSProperties = {
   ...btnSmall,
   background: "#2a0c0c",
   border: "1px solid #4a1b1b",
-};
+}; 
