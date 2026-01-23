@@ -2,10 +2,27 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
+/** MESMA KEY DO Companies.tsx */
+const COMPANIES_KEY = "sst_globalled_companies_v1";
+
+/** KEY DOS FUNCIONÁRIOS */
+const EMPLOYEES_KEY = "sst_globalled_employees_v1";
+
+/** compatibilidade com versões antigas */
+const LEGACY_COMPANIES_KEY = "companies";
+const LEGACY_EMPLOYEES_KEY = "employees";
+
 type Company = {
   id: string;
   name: string;
   cnpj?: string;
+  email?: string;
+  phone?: string;
+  responsible?: string;
+  cnae?: string;
+  address?: string;
+  notes?: string;
+  createdAt?: string;
 };
 
 type Employee = {
@@ -46,32 +63,38 @@ export default function Employees() {
   const [role, setRole] = useState("");
   const [phone, setPhone] = useState("");
 
+  useEffect(() => {
+    // 1) empresas: pega da key correta; se estiver vazio, tenta legacy
+    const c1 = readJSON<Company[]>(COMPANIES_KEY, []);
+    const c2 = c1.length ? c1 : readJSON<Company[]>(LEGACY_COMPANIES_KEY, []);
+    setCompanies(c2);
+
+    // 2) funcionários: pega da key correta; se estiver vazio, tenta legacy
+    const e1 = readJSON<Employee[]>(EMPLOYEES_KEY, []);
+    const e2 = e1.length ? e1 : readJSON<Employee[]>(LEGACY_EMPLOYEES_KEY, []);
+    setEmployees(e2);
+
+    // 3) seleciona a primeira empresa automaticamente
+    if (c2.length > 0) setCompanyId(c2[0].id);
+  }, []);
+
   const selectedCompany = useMemo(
     () => companies.find((c) => c.id === companyId) || null,
     [companies, companyId]
   );
 
-  useEffect(() => {
-    const c = readJSON<Company[]>("companies", []);
-    const e = readJSON<Employee[]>("employees", []);
-    setCompanies(c);
-    setEmployees(e);
-
-    // se existir pelo menos uma empresa, já seleciona a primeira
-    if (c.length > 0) setCompanyId(c[0].id);
-  }, []);
-
-  function refreshFromStorage() {
-    const c = readJSON<Company[]>("companies", []);
-    const e = readJSON<Employee[]>("employees", []);
-    setCompanies(c);
-    setEmployees(e);
-    if (c.length > 0 && !c.some((x) => x.id === companyId)) setCompanyId(c[0].id);
-  }
+  const listFiltered = useMemo(() => {
+    if (!companyId) return employees;
+    return employees.filter((e) => e.companyId === companyId);
+  }, [employees, companyId]);
 
   function addEmployee() {
-    if (!companyId) {
+    if (!companies.length) {
       alert("Cadastre uma empresa primeiro em 'Cadastrar Empresas'.");
+      return;
+    }
+    if (!companyId) {
+      alert("Selecione uma empresa.");
       return;
     }
     if (!name.trim()) {
@@ -91,7 +114,11 @@ export default function Employees() {
 
     const next = [newEmp, ...employees];
     setEmployees(next);
-    writeJSON("employees", next);
+
+    // salva na key nova
+    writeJSON(EMPLOYEES_KEY, next);
+    // opcional: salva também na legacy pra não quebrar nada antigo
+    writeJSON(LEGACY_EMPLOYEES_KEY, next);
 
     setName("");
     setCpf("");
@@ -105,15 +132,11 @@ export default function Employees() {
     if (!confirm("Remover este funcionário?")) return;
     const next = employees.filter((e) => e.id !== id);
     setEmployees(next);
-    writeJSON("employees", next);
+    writeJSON(EMPLOYEES_KEY, next);
+    writeJSON(LEGACY_EMPLOYEES_KEY, next);
   }
 
-  const listFiltered = useMemo(() => {
-    if (!companyId) return employees;
-    return employees.filter((e) => e.companyId === companyId);
-  }, [employees, companyId]);
-
-  // estilos simples (igual seu padrão)
+  // estilos
   const page: React.CSSProperties = {
     minHeight: "100vh",
     background: "#0b0b0b",
@@ -137,7 +160,7 @@ export default function Employees() {
     flexWrap: "wrap",
   };
 
-  const input: React.CSSProperties = {
+  const inputStyle: React.CSSProperties = {
     flex: "1 1 220px",
     padding: "12px 12px",
     borderRadius: 10,
@@ -145,11 +168,6 @@ export default function Employees() {
     background: "#0f0f0f",
     color: "#fff",
     outline: "none",
-  };
-
-  const select: React.CSSProperties = {
-    ...input,
-    flex: "1 1 260px",
   };
 
   const btn: React.CSSProperties = {
@@ -178,19 +196,15 @@ export default function Employees() {
         <Link to="/" style={{ ...btn, display: "inline-block" }}>
           ← Voltar
         </Link>
-        <button
-          onClick={refreshFromStorage}
-          style={{ ...btn, marginLeft: 10 }}
-          title="Recarregar empresas/funcionários do localStorage"
-        >
-          Recarregar
-        </button>
+        <Link to="/companies" style={{ ...btn, display: "inline-block", marginLeft: 10 }}>
+          Empresas
+        </Link>
       </div>
 
       <div style={card}>
         <h2 style={{ margin: 0, marginBottom: 6 }}>Funcionários</h2>
         <div style={small}>
-          Selecione a empresa e cadastre os funcionários. (Tudo fica salvo no navegador)
+          Empresas lidas de <b>{COMPANIES_KEY}</b> (igual o Companies.tsx)
         </div>
 
         <div style={{ height: 14 }} />
@@ -208,49 +222,47 @@ export default function Employees() {
               Nenhuma empresa cadastrada
             </div>
             <div style={{ opacity: 0.8, marginBottom: 10 }}>
-              Vá em <b>Cadastrar Empresas</b> e crie pelo menos 1 empresa para poder
-              cadastrar funcionários.
+              Vá em <b>Empresas</b> e cadastre pelo menos 1.
             </div>
             <Link to="/companies" style={{ ...btnGreen, display: "inline-block" }}>
-              Ir para Cadastrar Empresas
+              Ir para Empresas
             </Link>
           </div>
         ) : (
           <>
             <div style={row}>
               <select
-                style={select}
+                style={{ ...inputStyle, flex: "1 1 260px" }}
                 value={companyId}
                 onChange={(e) => setCompanyId(e.target.value)}
               >
                 {companies.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name}
-                    {c.cnpj ? ` — ${c.cnpj}` : ""}
+                    {c.name} {c.cnpj ? `— ${c.cnpj}` : ""}
                   </option>
                 ))}
               </select>
 
               <input
-                style={input}
+                style={inputStyle}
                 placeholder="Nome do funcionário *"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
               <input
-                style={input}
+                style={inputStyle}
                 placeholder="CPF (opcional)"
                 value={cpf}
                 onChange={(e) => setCpf(e.target.value)}
               />
               <input
-                style={input}
+                style={inputStyle}
                 placeholder="Função / Cargo (opcional)"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
               />
               <input
-                style={input}
+                style={inputStyle}
                 placeholder="Telefone (opcional)"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
@@ -279,54 +291,37 @@ export default function Employees() {
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {listFiltered.map((e) => {
-                  const comp = companies.find((c) => c.id === e.companyId);
-                  return (
-                    <div
-                      key={e.id}
-                      style={{
-                        border: "1px solid #2a2a2a",
-                        borderRadius: 12,
-                        padding: 12,
-                        background: "#0f0f0f",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 800, fontSize: 16 }}>
-                          {e.name}
-                        </div>
-                        <div style={small}>
-                          Empresa: <b>{comp?.name || "—"}</b>
-                          {e.role ? ` • Cargo: ${e.role}` : ""}
-                          {e.cpf ? ` • CPF: ${e.cpf}` : ""}
-                          {e.phone ? ` • Tel: ${e.phone}` : ""}
-                        </div>
+                {listFiltered.map((e) => (
+                  <div
+                    key={e.id}
+                    style={{
+                      border: "1px solid #2a2a2a",
+                      borderRadius: 12,
+                      padding: 12,
+                      background: "#0f0f0f",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 12,
+                      alignItems: "center",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 16 }}>{e.name}</div>
+                      <div style={small}>
+                        {e.role ? `Cargo: ${e.role} • ` : ""}
+                        {e.cpf ? `CPF: ${e.cpf} • ` : ""}
+                        {e.phone ? `Tel: ${e.phone}` : ""}
                       </div>
-
-                      <button style={btn} onClick={() => removeEmployee(e.id)}>
-                        Remover
-                      </button>
                     </div>
-                  );
-                })}
+
+                    <button style={btn} onClick={() => removeEmployee(e.id)}>
+                      Remover
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
-
-            <div style={{ height: 18 }} />
-
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <Link to="/exams" style={btn}>
-                Ir para Exames
-              </Link>
-              <Link to="/dashboard" style={btn}>
-                Ir para Dashboard
-              </Link>
-            </div>
           </>
         )}
       </div>
