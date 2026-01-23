@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 type Company = {
   id: string;
@@ -16,19 +17,20 @@ type Company = {
 type Employee = {
   id: string;
   companyId: string;
+
   name: string;
   cpf: string;
-  role: string;
-  sector: string;
-  email: string;
-  phone: string;
+  role: string; // função
+  sector: string; // setor
   admissionDate: string; // YYYY-MM-DD
-  status: "ATIVO" | "INATIVO";
+  phone: string;
+  email: string;
+
   notes: string;
   createdAt: string;
 };
 
-const COMPANIES_KEY = "sst_globalled_companies_v1"; // NÃO muda (é o seu Companies.tsx)
+const COMPANIES_KEY = "sst_globalled_companies_v1";
 const EMPLOYEES_KEY = "sst_globalled_employees_v1";
 
 function uid() {
@@ -74,24 +76,38 @@ function formatPhoneBR(value: string) {
   return out;
 }
 
-function loadJSON<T>(key: string, fallback: T): T {
+function loadCompanies(): Company[] {
   try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
+    const raw = localStorage.getItem(COMPANIES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return fallback;
+    return [];
   }
 }
 
-function saveJSON(key: string, value: any) {
-  localStorage.setItem(key, JSON.stringify(value));
+function loadEmployees(): Employee[] {
+  try {
+    const raw = localStorage.getItem(EMPLOYEES_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveEmployees(items: Employee[]) {
+  localStorage.setItem(EMPLOYEES_KEY, JSON.stringify(items));
 }
 
 export default function Employees() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [query, setQuery] = useState("");
+  const [companyFilter, setCompanyFilter] = useState<string>("");
+
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [form, setForm] = useState<Omit<Employee, "id" | "createdAt">>({
@@ -100,37 +116,34 @@ export default function Employees() {
     cpf: "",
     role: "",
     sector: "",
-    email: "",
-    phone: "",
     admissionDate: "",
-    status: "ATIVO",
+    phone: "",
+    email: "",
     notes: "",
   });
 
   useEffect(() => {
-    const c = loadJSON<Company[]>(COMPANIES_KEY, []);
-    setCompanies(Array.isArray(c) ? c : []);
-    const e = loadJSON<Employee[]>(EMPLOYEES_KEY, []);
-    setEmployees(Array.isArray(e) ? e : []);
+    setCompanies(loadCompanies());
+    setEmployees(loadEmployees());
   }, []);
 
   useEffect(() => {
-    saveJSON(EMPLOYEES_KEY, employees);
+    saveEmployees(employees);
   }, [employees]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return employees;
-
     return employees.filter((e) => {
-      const companyName = companies.find((c) => c.id === e.companyId)?.name || "";
-      const hay = `${companyName} ${e.name} ${e.cpf} ${e.role} ${e.sector} ${e.email} ${e.phone} ${e.status}`
+      if (companyFilter && e.companyId !== companyFilter) return false;
+      if (!q) return true;
+      const c = companies.find((x) => x.id === e.companyId);
+      const hay = `${e.name} ${e.cpf} ${e.role} ${e.sector} ${e.email} ${e.phone} ${c?.name || ""}`
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [employees, query, companies]);
+  }, [employees, query, companyFilter, companies]);
 
-  function onChange<K extends keyof typeof form>(key: K, value: any) {
+  function onChange<K extends keyof typeof form>(key: K, value: string) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -141,20 +154,20 @@ export default function Employees() {
       cpf: "",
       role: "",
       sector: "",
-      email: "",
-      phone: "",
       admissionDate: "",
-      status: "ATIVO",
+      phone: "",
+      email: "",
       notes: "",
     });
     setEditingId(null);
   }
 
   function validate() {
+    if (!companies.length) return "Cadastre uma empresa antes de cadastrar funcionários.";
     if (!form.companyId) return "Selecione a empresa.";
     if (!form.name.trim()) return "Informe o nome do funcionário.";
     const cpfDigits = onlyDigits(form.cpf);
-    if (cpfDigits.length !== 11) return "CPF incompleto (11 dígitos).";
+    if (cpfDigits.length !== 11) return "CPF incompleto (precisa de 11 dígitos).";
     if (form.email && !/^\S+@\S+\.\S+$/.test(form.email)) return "E-mail inválido.";
     const phoneDigits = onlyDigits(form.phone);
     if (form.phone && (phoneDigits.length < 10 || phoneDigits.length > 11))
@@ -191,23 +204,23 @@ export default function Employees() {
       cpf: formatCPF(form.cpf),
       phone: formatPhoneBR(form.phone),
     };
+
     setEmployees((prev) => [item, ...prev]);
     resetForm();
   }
 
-  function editEmployee(emp: Employee) {
-    setEditingId(emp.id);
+  function editEmployee(e: Employee) {
+    setEditingId(e.id);
     setForm({
-      companyId: emp.companyId,
-      name: emp.name,
-      cpf: emp.cpf,
-      role: emp.role,
-      sector: emp.sector,
-      email: emp.email,
-      phone: emp.phone,
-      admissionDate: emp.admissionDate,
-      status: emp.status,
-      notes: emp.notes,
+      companyId: e.companyId,
+      name: e.name,
+      cpf: e.cpf,
+      role: e.role,
+      sector: e.sector,
+      admissionDate: e.admissionDate,
+      phone: e.phone,
+      email: e.email,
+      notes: e.notes,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -218,73 +231,81 @@ export default function Employees() {
     if (editingId === id) resetForm();
   }
 
-  const companyLabel = (id: string) => companies.find((c) => c.id === id)?.name || "Empresa (desconhecida)";
+  function clearAll() {
+    if (!confirm("Apagar TODOS os funcionários salvos neste dispositivo?")) return;
+    setEmployees([]);
+    resetForm();
+  }
 
   return (
     <div style={page}>
+      <div style={{ ...card, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={title}>Cadastro de Funcionários</h1>
+          <p style={subtitle}>
+            Vincula funcionário à empresa (LocalStorage). Próximo passo: exames e ASO.
+          </p>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <Link to="/" style={linkBtn}>Home</Link>
+          <Link to="/companies" style={linkBtn}>Empresas</Link>
+          <Link to="/exams" style={linkBtn}>Exames</Link>
+        </div>
+      </div>
+
       <div style={card}>
-        <h1 style={title}>Cadastro de Funcionários</h1>
-        <p style={subtitle}>
-          Salvo no navegador (LocalStorage). Já usa as empresas do seu cadastro.
-        </p>
-
-        {companies.length === 0 ? (
-          <div style={warn}>
-            Nenhuma empresa cadastrada. Cadastre em <b>/companies</b> primeiro.
-          </div>
-        ) : null}
-
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, marginTop: 10 }}>
-          <label style={labelWrap}>
-            <span style={labelText}>Empresa *</span>
-            <select
-              value={form.companyId}
-              onChange={(e) => onChange("companyId", e.target.value)}
-              style={input}
-            >
-              <option value="">Selecione...</option>
-              {companies.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} ({c.cnpj})
-                </option>
-              ))}
-            </select>
-          </label>
-
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
           <div style={grid2}>
+            <label style={labelWrap}>
+              <span style={labelText}>Empresa *</span>
+              <select
+                value={form.companyId}
+                onChange={(e) => onChange("companyId", e.target.value)}
+                style={input}
+              >
+                <option value="">Selecione...</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} — {c.cnpj}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <Field
               label="Funcionário *"
               placeholder="Nome completo"
               value={form.name}
               onChange={(v) => onChange("name", v)}
             />
+          </div>
+
+          <div style={grid2}>
             <Field
               label="CPF *"
               placeholder="000.000.000-00"
               value={form.cpf}
               onChange={(v) => onChange("cpf", formatCPF(v))}
             />
+            <Field
+              label="Data de Admissão"
+              placeholder="YYYY-MM-DD"
+              value={form.admissionDate}
+              onChange={(v) => onChange("admissionDate", v)}
+              type="date"
+            />
           </div>
 
           <div style={grid2}>
-            <Field
-              label="Cargo"
-              placeholder="Ex: Técnico de Segurança"
-              value={form.role}
-              onChange={(v) => onChange("role", v)}
-            />
-            <Field
-              label="Setor"
-              placeholder="Ex: Produção"
-              value={form.sector}
-              onChange={(v) => onChange("sector", v)}
-            />
+            <Field label="Função" placeholder="Ex: Eletricista" value={form.role} onChange={(v) => onChange("role", v)} />
+            <Field label="Setor" placeholder="Ex: Manutenção" value={form.sector} onChange={(v) => onChange("sector", v)} />
           </div>
 
           <div style={grid2}>
             <Field
               label="E-mail"
-              placeholder="func@empresa.com.br"
+              placeholder="funcionario@empresa.com.br"
               value={form.email}
               onChange={(v) => onChange("email", v)}
             />
@@ -296,33 +317,9 @@ export default function Employees() {
             />
           </div>
 
-          <div style={grid2}>
-            <label style={labelWrap}>
-              <span style={labelText}>Data de admissão</span>
-              <input
-                type="date"
-                value={form.admissionDate}
-                onChange={(e) => onChange("admissionDate", e.target.value)}
-                style={input}
-              />
-            </label>
-
-            <label style={labelWrap}>
-              <span style={labelText}>Status</span>
-              <select
-                value={form.status}
-                onChange={(e) => onChange("status", e.target.value as any)}
-                style={input}
-              >
-                <option value="ATIVO">ATIVO</option>
-                <option value="INATIVO">INATIVO</option>
-              </select>
-            </label>
-          </div>
-
           <TextArea
             label="Observações"
-            placeholder="Ex: restrições, funções, treinamentos, etc."
+            placeholder="Restrições, riscos, histórico, etc."
             value={form.notes}
             onChange={(v) => onChange("notes", v)}
           />
@@ -334,6 +331,9 @@ export default function Employees() {
             <button type="button" onClick={resetForm} style={btn}>
               Limpar
             </button>
+            <button type="button" onClick={clearAll} style={btnDanger}>
+              Apagar Tudo
+            </button>
           </div>
         </form>
       </div>
@@ -342,69 +342,82 @@ export default function Employees() {
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <h2 style={{ margin: 0 }}>Funcionários</h2>
           <span style={pill}>{employees.length} cadastrados</span>
+
           <div style={{ flex: 1 }} />
+
+          <select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} style={{ ...input, maxWidth: 320 }}>
+            <option value="">Todas as empresas</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por empresa, nome, CPF..."
+            placeholder="Buscar por nome, CPF, função..."
             style={search}
           />
         </div>
 
         <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
           {filtered.length === 0 ? (
-            <div style={empty}>Nenhum funcionário encontrado.</div>
+            <div style={empty}>
+              {companies.length ? "Nenhum funcionário encontrado." : "Cadastre uma empresa primeiro em /companies."}
+            </div>
           ) : (
-            filtered.map((e) => (
-              <div key={e.id} style={row}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={rowTitle}>{e.name}</div>
-                  <div style={rowSub}>
-                    <b>Empresa:</b> {companyLabel(e.companyId)} • <b>CPF:</b> {e.cpf} •{" "}
-                    <b>Status:</b> {e.status}
-                  </div>
-                  <div style={rowSub}>
-                    {e.role ? (
-                      <>
-                        <b>Cargo:</b> {e.role} •{" "}
-                      </>
-                    ) : null}
-                    {e.sector ? (
-                      <>
-                        <b>Setor:</b> {e.sector}
-                      </>
-                    ) : null}
-                  </div>
-                  <div style={rowSub}>
-                    {e.email ? (
-                      <>
-                        <b>E-mail:</b> {e.email} •{" "}
-                      </>
-                    ) : null}
-                    {e.phone ? (
-                      <>
-                        <b>Tel:</b> {e.phone}
-                      </>
-                    ) : null}
-                  </div>
-                  {e.admissionDate ? (
+            filtered.map((e) => {
+              const c = companies.find((x) => x.id === e.companyId);
+              return (
+                <div key={e.id} style={row}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={rowTitle}>{e.name}</div>
                     <div style={rowSub}>
-                      <b>Admissão:</b> {e.admissionDate}
+                      <b>CPF:</b> {e.cpf} • <b>Empresa:</b> {c?.name || "—"}
                     </div>
-                  ) : null}
-                  {e.notes ? <div style={rowNotes}>{e.notes}</div> : null}
-                </div>
+                    <div style={rowSub}>
+                      {e.role ? (
+                        <>
+                          <b>Função:</b> {e.role} •{" "}
+                        </>
+                      ) : null}
+                      {e.sector ? (
+                        <>
+                          <b>Setor:</b> {e.sector}
+                        </>
+                      ) : null}
+                    </div>
+                    <div style={rowSub}>
+                      {e.email ? (
+                        <>
+                          <b>E-mail:</b> {e.email} •{" "}
+                        </>
+                      ) : null}
+                      {e.phone ? (
+                        <>
+                          <b>Tel:</b> {e.phone}
+                        </>
+                      ) : null}
+                    </div>
+                    {e.admissionDate ? <div style={rowSub}><b>Admissão:</b> {e.admissionDate}</div> : null}
+                    {e.notes ? <div style={rowNotes}>{e.notes}</div> : null}
+                  </div>
 
-                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                  <button onClick={() => editEmployee(e)} style={btnSmall}>
-                    Editar
-                  </button>
-                  <button onClick={() => removeEmployee(e.id)} style={btnSmallDanger}>
-                    Excluir
-                  </button>
+                  <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+                    <button onClick={() => editEmployee(e)} style={btnSmall}>Editar</button>
+                    <Link
+                      to={`/exams?employeeId=${encodeURIComponent(e.id)}`}
+                      style={{ ...btnSmall, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+                    >
+                      Exames
+                    </Link>
+                    <button onClick={() => removeEmployee(e.id)} style={btnSmallDanger}>Excluir</button>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
@@ -412,18 +425,20 @@ export default function Employees() {
   );
 }
 
-/* ===== componentes ===== */
+/* ===== componentes simples ===== */
 
 function Field(props: {
   label: string;
   placeholder?: string;
   value: string;
   onChange: (v: string) => void;
+  type?: string;
 }) {
   return (
     <label style={labelWrap}>
       <span style={labelText}>{props.label}</span>
       <input
+        type={props.type || "text"}
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
         placeholder={props.placeholder}
@@ -452,7 +467,7 @@ function TextArea(props: {
   );
 }
 
-/* ===== estilos (igual vibe do Companies) ===== */
+/* ===== estilos ===== */
 
 const page: React.CSSProperties = {
   minHeight: "100vh",
@@ -481,15 +496,6 @@ const grid2: React.CSSProperties = {
   gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
 };
 
-const warn: React.CSSProperties = {
-  marginTop: 10,
-  padding: 12,
-  borderRadius: 12,
-  border: "1px solid #3b2f00",
-  background: "#1a1400",
-  color: "#ffd57a",
-};
-
 const labelWrap: React.CSSProperties = { display: "grid", gap: 6 };
 const labelText: React.CSSProperties = { fontSize: 12, opacity: 0.75 };
 
@@ -515,6 +521,12 @@ const btnBase: React.CSSProperties = {
 const btn: React.CSSProperties = { ...btnBase };
 const btnPrimary: React.CSSProperties = { ...btnBase, background: "#0a7a33", border: "none" };
 const btnPrimaryAlt: React.CSSProperties = { ...btnBase, background: "#0a6a7a", border: "none" };
+
+const btnDanger: React.CSSProperties = {
+  ...btnBase,
+  background: "#7a0a0a",
+  border: "none",
+};
 
 const search: React.CSSProperties = {
   ...input,
@@ -571,4 +583,11 @@ const btnSmallDanger: React.CSSProperties = {
   ...btnSmall,
   background: "#2a0c0c",
   border: "1px solid #4a1b1b",
+};
+
+const linkBtn: React.CSSProperties = {
+  ...btnSmall,
+  textDecoration: "none",
+  display: "inline-flex",
+  alignItems: "center",
 };
