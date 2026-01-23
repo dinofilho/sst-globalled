@@ -1,328 +1,244 @@
-// src/pages/Employees.tsx
-import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-
-/** MESMA KEY DO Companies.tsx */
-const COMPANIES_KEY = "sst_globalled_companies_v1";
-
-/** KEY DOS FUNCIONÁRIOS */
-const EMPLOYEES_KEY = "sst_globalled_employees_v1";
-
-/** compatibilidade com versões antigas */
-const LEGACY_COMPANIES_KEY = "companies";
-const LEGACY_EMPLOYEES_KEY = "employees";
-
-type Company = {
-  id: string;
-  name: string;
-  cnpj?: string;
-  email?: string;
-  phone?: string;
-  responsible?: string;
-  cnae?: string;
-  address?: string;
-  notes?: string;
-  createdAt?: string;
-};
+import { useEffect, useMemo, useState } from "react";
 
 type Employee = {
   id: string;
-  companyId: string;
   name: string;
-  cpf?: string;
-  role?: string;
-  phone?: string;
+  role: string;
+  active: boolean;
   createdAt: string;
 };
 
+const STORAGE_KEY = "sst_globalled_employees_v1";
+
 function uid() {
-  return Math.random().toString(16).slice(2) + Date.now().toString(16);
+  return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-function readJSON<T>(key: string, fallback: T): T {
+function loadEmployees(): Employee[] {
   try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed;
   } catch {
-    return fallback;
+    return [];
   }
 }
 
-function writeJSON<T>(key: string, value: T) {
-  localStorage.setItem(key, JSON.stringify(value));
+function saveEmployees(list: Employee[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
 }
 
 export default function Employees() {
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-
-  const [companyId, setCompanyId] = useState("");
   const [name, setName] = useState("");
-  const [cpf, setCpf] = useState("");
   const [role, setRole] = useState("");
-  const [phone, setPhone] = useState("");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
-    // 1) empresas: pega da key correta; se estiver vazio, tenta legacy
-    const c1 = readJSON<Company[]>(COMPANIES_KEY, []);
-    const c2 = c1.length ? c1 : readJSON<Company[]>(LEGACY_COMPANIES_KEY, []);
-    setCompanies(c2);
-
-    // 2) funcionários: pega da key correta; se estiver vazio, tenta legacy
-    const e1 = readJSON<Employee[]>(EMPLOYEES_KEY, []);
-    const e2 = e1.length ? e1 : readJSON<Employee[]>(LEGACY_EMPLOYEES_KEY, []);
-    setEmployees(e2);
-
-    // 3) seleciona a primeira empresa automaticamente
-    if (c2.length > 0) setCompanyId(c2[0].id);
+    setEmployees(loadEmployees());
   }, []);
 
-  const selectedCompany = useMemo(
-    () => companies.find((c) => c.id === companyId) || null,
-    [companies, companyId]
-  );
+  useEffect(() => {
+    saveEmployees(employees);
+  }, [employees]);
 
-  const listFiltered = useMemo(() => {
-    if (!companyId) return employees;
-    return employees.filter((e) => e.companyId === companyId);
-  }, [employees, companyId]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return employees;
+    return employees.filter(
+      (e) =>
+        e.name.toLowerCase().includes(q) ||
+        e.role.toLowerCase().includes(q) ||
+        e.id.toLowerCase().includes(q)
+    );
+  }, [employees, query]);
 
   function addEmployee() {
-    if (!companies.length) {
-      alert("Cadastre uma empresa primeiro em 'Cadastrar Empresas'.");
-      return;
-    }
-    if (!companyId) {
-      alert("Selecione uma empresa.");
-      return;
-    }
-    if (!name.trim()) {
-      alert("Informe o nome do funcionário.");
-      return;
-    }
+    const n = name.trim();
+    const r = role.trim();
+    if (!n) return;
 
-    const newEmp: Employee = {
+    const newItem: Employee = {
       id: uid(),
-      companyId,
-      name: name.trim(),
-      cpf: cpf.trim() || undefined,
-      role: role.trim() || undefined,
-      phone: phone.trim() || undefined,
+      name: n,
+      role: r || "—",
+      active: true,
       createdAt: new Date().toISOString(),
     };
 
-    const next = [newEmp, ...employees];
-    setEmployees(next);
-
-    // salva na key nova
-    writeJSON(EMPLOYEES_KEY, next);
-    // opcional: salva também na legacy pra não quebrar nada antigo
-    writeJSON(LEGACY_EMPLOYEES_KEY, next);
-
+    setEmployees((prev) => [newItem, ...prev]);
     setName("");
-    setCpf("");
     setRole("");
-    setPhone("");
+  }
 
-    alert("Funcionário cadastrado!");
+  function toggleActive(id: string) {
+    setEmployees((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, active: !e.active } : e))
+    );
   }
 
   function removeEmployee(id: string) {
-    if (!confirm("Remover este funcionário?")) return;
-    const next = employees.filter((e) => e.id !== id);
-    setEmployees(next);
-    writeJSON(EMPLOYEES_KEY, next);
-    writeJSON(LEGACY_EMPLOYEES_KEY, next);
+    setEmployees((prev) => prev.filter((e) => e.id !== id));
   }
 
-  // estilos
-  const page: React.CSSProperties = {
-    minHeight: "100vh",
-    background: "#0b0b0b",
-    color: "#fff",
-    padding: 18,
-  };
-
-  const card: React.CSSProperties = {
-    width: "100%",
-    maxWidth: 720,
-    margin: "0 auto",
-    border: "1px solid #2a2a2a",
-    borderRadius: 12,
-    background: "#111",
-    padding: 16,
-  };
-
-  const row: React.CSSProperties = {
-    display: "flex",
-    gap: 10,
-    flexWrap: "wrap",
-  };
-
-  const inputStyle: React.CSSProperties = {
-    flex: "1 1 220px",
-    padding: "12px 12px",
-    borderRadius: 10,
-    border: "1px solid #2a2a2a",
-    background: "#0f0f0f",
-    color: "#fff",
-    outline: "none",
-  };
-
-  const btn: React.CSSProperties = {
-    padding: "12px 14px",
-    borderRadius: 10,
-    border: "1px solid #2a2a2a",
-    background: "#151515",
-    color: "#fff",
-    textDecoration: "none",
-    fontWeight: 600,
-    cursor: "pointer",
-  };
-
-  const btnGreen: React.CSSProperties = {
-    ...btn,
-    background: "#25D366",
-    color: "#000",
-    border: "none",
-  };
-
-  const small: React.CSSProperties = { opacity: 0.75, fontSize: 12 };
+  function clearAll() {
+    setEmployees([]);
+  }
 
   return (
-    <div style={page}>
-      <div style={{ maxWidth: 720, margin: "0 auto", marginBottom: 12 }}>
-        <Link to="/" style={{ ...btn, display: "inline-block" }}>
-          ← Voltar
-        </Link>
-        <Link to="/companies" style={{ ...btn, display: "inline-block", marginLeft: 10 }}>
-          Empresas
-        </Link>
+    <div style={{ maxWidth: 960, margin: "0 auto", padding: 20 }}>
+      <h1 style={{ marginBottom: 6 }}>Funcionários</h1>
+      <p style={{ marginTop: 0, opacity: 0.8 }}>
+        Cadastro local (salva no navegador). Depois a gente liga no banco.
+      </p>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr auto",
+          gap: 10,
+          marginTop: 16,
+          alignItems: "center",
+        }}
+      >
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Nome do funcionário"
+          style={{ padding: 10, borderRadius: 8, border: "1px solid #333" }}
+        />
+        <input
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+          placeholder="Função (ex: Técnico SST)"
+          style={{ padding: 10, borderRadius: 8, border: "1px solid #333" }}
+        />
+        <button
+          onClick={addEmployee}
+          style={{
+            padding: "10px 14px",
+            borderRadius: 10,
+            border: "1px solid #2b7",
+            cursor: "pointer",
+            fontWeight: 700,
+          }}
+        >
+          + Adicionar
+        </button>
       </div>
 
-      <div style={card}>
-        <h2 style={{ margin: 0, marginBottom: 6 }}>Funcionários</h2>
-        <div style={small}>
-          Empresas lidas de <b>{COMPANIES_KEY}</b> (igual o Companies.tsx)
-        </div>
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          marginTop: 14,
+          flexWrap: "wrap",
+          alignItems: "center",
+        }}
+      >
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar por nome/função/id..."
+          style={{
+            padding: 10,
+            borderRadius: 8,
+            border: "1px solid #333",
+            flex: "1 1 280px",
+          }}
+        />
+        <button
+          onClick={clearAll}
+          style={{
+            padding: "10px 14px",
+            borderRadius: 10,
+            border: "1px solid #a33",
+            cursor: "pointer",
+            fontWeight: 700,
+          }}
+        >
+          Limpar tudo
+        </button>
+      </div>
 
-        <div style={{ height: 14 }} />
+      <div style={{ marginTop: 18, opacity: 0.85 }}>
+        Total: <b>{employees.length}</b> — Exibindo: <b>{filtered.length}</b>
+      </div>
 
-        {companies.length === 0 ? (
+      <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+        {filtered.length === 0 ? (
           <div
             style={{
-              border: "1px dashed #2a2a2a",
-              borderRadius: 12,
               padding: 14,
-              background: "#0f0f0f",
+              borderRadius: 12,
+              border: "1px dashed #444",
+              opacity: 0.85,
             }}
           >
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>
-              Nenhuma empresa cadastrada
-            </div>
-            <div style={{ opacity: 0.8, marginBottom: 10 }}>
-              Vá em <b>Empresas</b> e cadastre pelo menos 1.
-            </div>
-            <Link to="/companies" style={{ ...btnGreen, display: "inline-block" }}>
-              Ir para Empresas
-            </Link>
+            Nenhum funcionário ainda. Adicione o primeiro acima.
           </div>
         ) : (
-          <>
-            <div style={row}>
-              <select
-                style={{ ...inputStyle, flex: "1 1 260px" }}
-                value={companyId}
-                onChange={(e) => setCompanyId(e.target.value)}
-              >
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} {c.cnpj ? `— ${c.cnpj}` : ""}
-                  </option>
-                ))}
-              </select>
+          filtered.map((e) => (
+            <div
+              key={e.id}
+              style={{
+                padding: 14,
+                borderRadius: 12,
+                border: "1px solid #333",
+                display: "grid",
+                gridTemplateColumns: "1fr auto",
+                gap: 10,
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800 }}>
+                  {e.name}{" "}
+                  <span style={{ fontWeight: 600, opacity: 0.7 }}>
+                    — {e.role}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.7 }}>
+                  ID: {e.id} • Criado: {new Date(e.createdAt).toLocaleString()}
+                </div>
+                <div style={{ marginTop: 6 }}>
+                  Status:{" "}
+                  <b style={{ color: e.active ? "#2b7" : "#c55" }}>
+                    {e.active ? "ATIVO" : "INATIVO"}
+                  </b>
+                </div>
+              </div>
 
-              <input
-                style={inputStyle}
-                placeholder="Nome do funcionário *"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-              <input
-                style={inputStyle}
-                placeholder="CPF (opcional)"
-                value={cpf}
-                onChange={(e) => setCpf(e.target.value)}
-              />
-              <input
-                style={inputStyle}
-                placeholder="Função / Cargo (opcional)"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-              />
-              <input
-                style={inputStyle}
-                placeholder="Telefone (opcional)"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-              />
-
-              <button style={btnGreen} onClick={addEmployee}>
-                + Cadastrar Funcionário
-              </button>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => toggleActive(e.id)}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 10,
+                    border: "1px solid #555",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  {e.active ? "Desativar" : "Ativar"}
+                </button>
+                <button
+                  onClick={() => removeEmployee(e.id)}
+                  style={{
+                    padding: "8px 10px",
+                    borderRadius: 10,
+                    border: "1px solid #a33",
+                    cursor: "pointer",
+                    fontWeight: 700,
+                  }}
+                >
+                  Excluir
+                </button>
+              </div>
             </div>
-
-            {selectedCompany && (
-              <div style={{ marginTop: 10, ...small }}>
-                Empresa selecionada: <b>{selectedCompany.name}</b>
-              </div>
-            )}
-
-            <div style={{ height: 16 }} />
-
-            <h3 style={{ margin: 0, marginBottom: 8 }}>
-              Lista ({listFiltered.length})
-            </h3>
-
-            {listFiltered.length === 0 ? (
-              <div style={{ opacity: 0.75 }}>
-                Nenhum funcionário cadastrado para esta empresa.
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {listFiltered.map((e) => (
-                  <div
-                    key={e.id}
-                    style={{
-                      border: "1px solid #2a2a2a",
-                      borderRadius: 12,
-                      padding: 12,
-                      background: "#0f0f0f",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      gap: 12,
-                      alignItems: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: 16 }}>{e.name}</div>
-                      <div style={small}>
-                        {e.role ? `Cargo: ${e.role} • ` : ""}
-                        {e.cpf ? `CPF: ${e.cpf} • ` : ""}
-                        {e.phone ? `Tel: ${e.phone}` : ""}
-                      </div>
-                    </div>
-
-                    <button style={btn} onClick={() => removeEmployee(e.id)}>
-                      Remover
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
+          ))
         )}
       </div>
     </div>
