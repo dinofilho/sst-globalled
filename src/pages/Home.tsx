@@ -1,6 +1,7 @@
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
-<Link to="/employees">Funcionários</Link>
+const navigate = useNavigate();
+<button onClick={() => navigate("/employees")}>Funcionários</button>
 
 export default function Home() {
   return (
