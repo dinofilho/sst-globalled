@@ -1,3 +1,4 @@
+import Exams from "./pages/Exams";
 import { Routes, Route, Navigate } from "react-router-dom";
 
 import Home from "./pages/Home";
@@ -22,6 +23,7 @@ export default function App() {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/validate-certificate" element={<ValidateCertificate />} />
       <Route path="/validate-document" element={<ValidateDocument />} />
+      <Route path="/exams" element={<Exams />} />
       <Route path="/public-assessment" element={<PublicAssessment />} />
       <Route path="/auth" element={<Auth />} />
       <Route path="/select-business" element={<SelectBusiness />} />
