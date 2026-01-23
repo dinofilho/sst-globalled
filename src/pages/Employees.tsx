@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 
 type Company = {
   id: string;
@@ -17,15 +16,13 @@ type Company = {
 type Employee = {
   id: string;
   companyId: string;
-
   name: string;
   cpf: string;
-  role: string; // função
-  sector: string; // setor
-  admissionDate: string; // YYYY-MM-DD
-  phone: string;
+  role: string;
   email: string;
-
+  phone: string;
+  admissionDate: string; // YYYY-MM-DD
+  status: "ATIVO" | "INATIVO";
   notes: string;
   createdAt: string;
 };
@@ -55,8 +52,9 @@ function formatCPF(value: string) {
 }
 
 function formatPhoneBR(value: string) {
-  const v = onlyDigits(value).slice(0, 11);
+  const v = onlyDigits(value).slice(0, 11); // (11) 99999-9999
   const ddd = v.slice(0, 2);
+
   if (!ddd) return v;
 
   if (v.length <= 10) {
@@ -76,38 +74,23 @@ function formatPhoneBR(value: string) {
   return out;
 }
 
-function loadCompanies(): Company[] {
+function safeLoad<T>(key: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(COMPANIES_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
   } catch {
-    return [];
+    return fallback;
   }
 }
-
-function loadEmployees(): Employee[] {
-  try {
-    const raw = localStorage.getItem(EMPLOYEES_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveEmployees(items: Employee[]) {
-  localStorage.setItem(EMPLOYEES_KEY, JSON.stringify(items));
+function safeSave(key: string, value: any) {
+  localStorage.setItem(key, JSON.stringify(value));
 }
 
 export default function Employees() {
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [items, setItems] = useState<Employee[]>([]);
   const [query, setQuery] = useState("");
-  const [companyFilter, setCompanyFilter] = useState<string>("");
-
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [form, setForm] = useState<Omit<Employee, "id" | "createdAt">>({
@@ -115,63 +98,69 @@ export default function Employees() {
     name: "",
     cpf: "",
     role: "",
-    sector: "",
-    admissionDate: "",
-    phone: "",
     email: "",
+    phone: "",
+    admissionDate: "",
+    status: "ATIVO",
     notes: "",
   });
 
   useEffect(() => {
-    setCompanies(loadCompanies());
-    setEmployees(loadEmployees());
+    const cs = safeLoad<Company[]>(COMPANIES_KEY, []);
+    const es = safeLoad<Employee[]>(EMPLOYEES_KEY, []);
+    setCompanies(cs);
+    setItems(es);
+
+    // se tiver empresa, já seleciona a primeira
+    if (cs.length && !form.companyId) {
+      setForm((p) => ({ ...p, companyId: cs[0].id }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    saveEmployees(employees);
-  }, [employees]);
+    safeSave(EMPLOYEES_KEY, items);
+  }, [items]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return employees.filter((e) => {
-      if (companyFilter && e.companyId !== companyFilter) return false;
-      if (!q) return true;
-      const c = companies.find((x) => x.id === e.companyId);
-      const hay = `${e.name} ${e.cpf} ${e.role} ${e.sector} ${e.email} ${e.phone} ${c?.name || ""}`
-        .toLowerCase();
+    if (!q) return items;
+
+    const companyMap = new Map(companies.map((c) => [c.id, c.name]));
+    return items.filter((e) => {
+      const hay = `${e.name} ${e.cpf} ${e.role} ${e.email} ${e.phone} ${companyMap.get(e.companyId) || ""}`.toLowerCase();
       return hay.includes(q);
     });
-  }, [employees, query, companyFilter, companies]);
+  }, [items, query, companies]);
 
-  function onChange<K extends keyof typeof form>(key: K, value: string) {
+  function onChange<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
   function resetForm() {
-    setForm({
-      companyId: "",
+    setEditingId(null);
+    setForm((prev) => ({
+      companyId: companies[0]?.id || prev.companyId || "",
       name: "",
       cpf: "",
       role: "",
-      sector: "",
-      admissionDate: "",
-      phone: "",
       email: "",
+      phone: "",
+      admissionDate: "",
+      status: "ATIVO",
       notes: "",
-    });
-    setEditingId(null);
+    }));
   }
 
   function validate() {
-    if (!companies.length) return "Cadastre uma empresa antes de cadastrar funcionários.";
+    if (!companies.length) return "Cadastre pelo menos 1 empresa primeiro.";
     if (!form.companyId) return "Selecione a empresa.";
     if (!form.name.trim()) return "Informe o nome do funcionário.";
     const cpfDigits = onlyDigits(form.cpf);
     if (cpfDigits.length !== 11) return "CPF incompleto (precisa de 11 dígitos).";
     if (form.email && !/^\S+@\S+\.\S+$/.test(form.email)) return "E-mail inválido.";
     const phoneDigits = onlyDigits(form.phone);
-    if (form.phone && (phoneDigits.length < 10 || phoneDigits.length > 11))
-      return "Telefone inválido (use DDD).";
+    if (form.phone && (phoneDigits.length < 10 || phoneDigits.length > 11)) return "Telefone inválido (use DDD).";
     return null;
   }
 
@@ -181,14 +170,14 @@ export default function Employees() {
     if (err) return alert(err);
 
     if (editingId) {
-      setEmployees((prev) =>
+      setItems((prev) =>
         prev.map((x) =>
           x.id === editingId
             ? {
                 ...x,
                 ...form,
-                cpf: formatCPF(form.cpf),
-                phone: formatPhoneBR(form.phone),
+                cpf: formatCPF(String(form.cpf)),
+                phone: formatPhoneBR(String(form.phone)),
               }
             : x
         )
@@ -201,114 +190,96 @@ export default function Employees() {
       id: uid(),
       createdAt: new Date().toISOString(),
       ...form,
-      cpf: formatCPF(form.cpf),
-      phone: formatPhoneBR(form.phone),
+      cpf: formatCPF(String(form.cpf)),
+      phone: formatPhoneBR(String(form.phone)),
     };
 
-    setEmployees((prev) => [item, ...prev]);
+    setItems((prev) => [item, ...prev]);
     resetForm();
   }
 
-  function editEmployee(e: Employee) {
+  function editOne(e: Employee) {
     setEditingId(e.id);
     setForm({
       companyId: e.companyId,
       name: e.name,
       cpf: e.cpf,
       role: e.role,
-      sector: e.sector,
-      admissionDate: e.admissionDate,
-      phone: e.phone,
       email: e.email,
+      phone: e.phone,
+      admissionDate: e.admissionDate || "",
+      status: e.status,
       notes: e.notes,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function removeEmployee(id: string) {
+  function removeOne(id: string) {
     if (!confirm("Excluir este funcionário?")) return;
-    setEmployees((prev) => prev.filter((x) => x.id !== id));
+    setItems((prev) => prev.filter((x) => x.id !== id));
     if (editingId === id) resetForm();
   }
 
-  function clearAll() {
-    if (!confirm("Apagar TODOS os funcionários salvos neste dispositivo?")) return;
-    setEmployees([]);
-    resetForm();
-  }
+  const companyNameById = useMemo(() => {
+    const map = new Map(companies.map((c) => [c.id, c.name]));
+    return (id: string) => map.get(id) || "—";
+  }, [companies]);
 
   return (
     <div style={page}>
-      <div style={{ ...card, display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <div>
-          <h1 style={title}>Cadastro de Funcionários</h1>
-          <p style={subtitle}>
-            Vincula funcionário à empresa (LocalStorage). Próximo passo: exames e ASO.
-          </p>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <Link to="/" style={linkBtn}>Home</Link>
-          <Link to="/companies" style={linkBtn}>Empresas</Link>
-          <Link to="/exams" style={linkBtn}>Exames</Link>
-        </div>
-      </div>
-
       <div style={card}>
-        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12 }}>
-          <div style={grid2}>
-            <label style={labelWrap}>
-              <span style={labelText}>Empresa *</span>
-              <select
-                value={form.companyId}
-                onChange={(e) => onChange("companyId", e.target.value)}
-                style={input}
-              >
-                <option value="">Selecione...</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} — {c.cnpj}
-                  </option>
-                ))}
-              </select>
-            </label>
+        <h1 style={title}>Funcionários</h1>
+        <p style={subtitle}>Cadastro local (LocalStorage) — depois integra com banco.</p>
 
+        {!companies.length ? (
+          <div style={warn}>
+            Você ainda não tem empresa cadastrada. Vá em <b>Empresas</b> e cadastre uma primeiro.
+          </div>
+        ) : null}
+
+        <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, marginTop: 10 }}>
+          <label style={labelWrap}>
+            <span style={labelText}>Empresa *</span>
+            <select
+              value={form.companyId}
+              onChange={(e) => onChange("companyId", e.target.value)}
+              style={input}
+            >
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} — {c.cnpj}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div style={grid2}>
             <Field
-              label="Funcionário *"
-              placeholder="Nome completo"
+              label="Nome *"
+              placeholder="Ex: João da Silva"
               value={form.name}
               onChange={(v) => onChange("name", v)}
             />
-          </div>
-
-          <div style={grid2}>
             <Field
               label="CPF *"
               placeholder="000.000.000-00"
               value={form.cpf}
               onChange={(v) => onChange("cpf", formatCPF(v))}
             />
+          </div>
+
+          <div style={grid2}>
+            <Field label="Cargo/Função" placeholder="Ex: Operador" value={form.role} onChange={(v) => onChange("role", v)} />
             <Field
-              label="Data de Admissão"
+              label="Data de admissão"
               placeholder="YYYY-MM-DD"
               value={form.admissionDate}
               onChange={(v) => onChange("admissionDate", v)}
-              type="date"
             />
           </div>
 
           <div style={grid2}>
-            <Field label="Função" placeholder="Ex: Eletricista" value={form.role} onChange={(v) => onChange("role", v)} />
-            <Field label="Setor" placeholder="Ex: Manutenção" value={form.sector} onChange={(v) => onChange("sector", v)} />
-          </div>
-
-          <div style={grid2}>
-            <Field
-              label="E-mail"
-              placeholder="funcionario@empresa.com.br"
-              value={form.email}
-              onChange={(v) => onChange("email", v)}
-            />
+            <Field label="E-mail" placeholder="nome@empresa.com.br" value={form.email} onChange={(v) => onChange("email", v)} />
             <Field
               label="Telefone"
               placeholder="(11) 99999-9999"
@@ -317,9 +288,17 @@ export default function Employees() {
             />
           </div>
 
+          <label style={labelWrap}>
+            <span style={labelText}>Status</span>
+            <select value={form.status} onChange={(e) => onChange("status", e.target.value as any)} style={input}>
+              <option value="ATIVO">ATIVO</option>
+              <option value="INATIVO">INATIVO</option>
+            </select>
+          </label>
+
           <TextArea
             label="Observações"
-            placeholder="Restrições, riscos, histórico, etc."
+            placeholder="Ex: setor, restrições, EPI, treinamentos, etc."
             value={form.notes}
             onChange={(v) => onChange("notes", v)}
           />
@@ -331,64 +310,43 @@ export default function Employees() {
             <button type="button" onClick={resetForm} style={btn}>
               Limpar
             </button>
-            <button type="button" onClick={clearAll} style={btnDanger}>
-              Apagar Tudo
-            </button>
           </div>
         </form>
       </div>
 
       <div style={card}>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <h2 style={{ margin: 0 }}>Funcionários</h2>
-          <span style={pill}>{employees.length} cadastrados</span>
-
+          <h2 style={{ margin: 0 }}>Lista</h2>
+          <span style={pill}>{items.length} cadastrados</span>
           <div style={{ flex: 1 }} />
-
-          <select value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} style={{ ...input, maxWidth: 320 }}>
-            <option value="">Todas as empresas</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por nome, CPF, função..."
+            placeholder="Buscar por nome, CPF, empresa..."
             style={search}
           />
         </div>
 
         <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
           {filtered.length === 0 ? (
-            <div style={empty}>
-              {companies.length ? "Nenhum funcionário encontrado." : "Cadastre uma empresa primeiro em /companies."}
-            </div>
+            <div style={empty}>Nenhum funcionário encontrado.</div>
           ) : (
-            filtered.map((e) => {
-              const c = companies.find((x) => x.id === e.companyId);
-              return (
-                <div key={e.id} style={row}>
-                  <div style={{ minWidth: 0 }}>
-                    <div style={rowTitle}>{e.name}</div>
-                    <div style={rowSub}>
-                      <b>CPF:</b> {e.cpf} • <b>Empresa:</b> {c?.name || "—"}
-                    </div>
-                    <div style={rowSub}>
-                      {e.role ? (
-                        <>
-                          <b>Função:</b> {e.role} •{" "}
-                        </>
-                      ) : null}
-                      {e.sector ? (
-                        <>
-                          <b>Setor:</b> {e.sector}
-                        </>
-                      ) : null}
-                    </div>
+            filtered.map((e) => (
+              <div key={e.id} style={row}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={rowTitle}>{e.name}</div>
+                  <div style={rowSub}>
+                    <b>Empresa:</b> {companyNameById(e.companyId)} • <b>CPF:</b> {e.cpf}
+                  </div>
+                  <div style={rowSub}>
+                    {e.role ? (
+                      <>
+                        <b>Função:</b> {e.role} •{" "}
+                      </>
+                    ) : null}
+                    <b>Status:</b> {e.status}
+                  </div>
+                  {(e.email || e.phone) ? (
                     <div style={rowSub}>
                       {e.email ? (
                         <>
@@ -401,59 +359,43 @@ export default function Employees() {
                         </>
                       ) : null}
                     </div>
-                    {e.admissionDate ? <div style={rowSub}><b>Admissão:</b> {e.admissionDate}</div> : null}
-                    {e.notes ? <div style={rowNotes}>{e.notes}</div> : null}
-                  </div>
-
-                  <div style={{ display: "flex", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
-                    <button onClick={() => editEmployee(e)} style={btnSmall}>Editar</button>
-                    <Link
-                      to={`/exams?employeeId=${encodeURIComponent(e.id)}`}
-                      style={{ ...btnSmall, textDecoration: "none", display: "inline-flex", alignItems: "center" }}
-                    >
-                      Exames
-                    </Link>
-                    <button onClick={() => removeEmployee(e.id)} style={btnSmallDanger}>Excluir</button>
-                  </div>
+                  ) : null}
+                  {e.notes ? <div style={rowNotes}>{e.notes}</div> : null}
                 </div>
-              );
-            })
+
+                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                  <button onClick={() => editOne(e)} style={btnSmall}>
+                    Editar
+                  </button>
+                  <button onClick={() => removeOne(e.id)} style={btnSmallDanger}>
+                    Excluir
+                  </button>
+                </div>
+              </div>
+            ))
           )}
         </div>
+
+        <p style={{ marginTop: 16, fontSize: 12, opacity: 0.55 }}>
+          Próximo passo: ligar “Exames” e “ASO” por funcionário com vencimentos.
+        </p>
       </div>
     </div>
   );
 }
 
-/* ===== componentes simples ===== */
+/* ===== componentes ===== */
 
-function Field(props: {
-  label: string;
-  placeholder?: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-}) {
+function Field(props: { label: string; placeholder?: string; value: string; onChange: (v: string) => void }) {
   return (
     <label style={labelWrap}>
       <span style={labelText}>{props.label}</span>
-      <input
-        type={props.type || "text"}
-        value={props.value}
-        onChange={(e) => props.onChange(e.target.value)}
-        placeholder={props.placeholder}
-        style={input}
-      />
+      <input value={props.value} onChange={(e) => props.onChange(e.target.value)} placeholder={props.placeholder} style={input} />
     </label>
   );
 }
 
-function TextArea(props: {
-  label: string;
-  placeholder?: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
+function TextArea(props: { label: string; placeholder?: string; value: string; onChange: (v: string) => void }) {
   return (
     <label style={labelWrap}>
       <span style={labelText}>{props.label}</span>
@@ -490,6 +432,16 @@ const card: React.CSSProperties = {
 const title: React.CSSProperties = { margin: 0, fontSize: 22 };
 const subtitle: React.CSSProperties = { marginTop: 6, opacity: 0.75 };
 
+const warn: React.CSSProperties = {
+  marginTop: 10,
+  padding: 12,
+  borderRadius: 10,
+  border: "1px solid #3a2a2a",
+  background: "#1a1010",
+  opacity: 0.95,
+  fontSize: 13,
+};
+
 const grid2: React.CSSProperties = {
   display: "grid",
   gap: 12,
@@ -522,17 +474,7 @@ const btn: React.CSSProperties = { ...btnBase };
 const btnPrimary: React.CSSProperties = { ...btnBase, background: "#0a7a33", border: "none" };
 const btnPrimaryAlt: React.CSSProperties = { ...btnBase, background: "#0a6a7a", border: "none" };
 
-const btnDanger: React.CSSProperties = {
-  ...btnBase,
-  background: "#7a0a0a",
-  border: "none",
-};
-
-const search: React.CSSProperties = {
-  ...input,
-  maxWidth: 320,
-  padding: "10px 12px",
-};
+const search: React.CSSProperties = { ...input, maxWidth: 320, padding: "10px 12px" };
 
 const pill: React.CSSProperties = {
   fontSize: 12,
@@ -583,11 +525,4 @@ const btnSmallDanger: React.CSSProperties = {
   ...btnSmall,
   background: "#2a0c0c",
   border: "1px solid #4a1b1b",
-};
-
-const linkBtn: React.CSSProperties = {
-  ...btnSmall,
-  textDecoration: "none",
-  display: "inline-flex",
-  alignItems: "center",
 };
