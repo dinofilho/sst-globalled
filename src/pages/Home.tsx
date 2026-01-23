@@ -1,9 +1,9 @@
-import { useNavigate } from "react-router-dom";
-
-const navigate = useNavigate();
-<button onClick={() => navigate("/employees")}>Funcionários</button>
+import { Link, useNavigate } from "react-router-dom";
+import React from "react";
 
 export default function Home() {
+  const navigate = useNavigate(); // ✅ hook no lugar certo
+
   return (
     <div
       style={{
@@ -18,9 +18,7 @@ export default function Home() {
         textAlign: "center",
       }}
     >
-      <h1 style={{ fontSize: 36, marginBottom: 8 }}>
-        SST GLOBALLED
-      </h1>
+      <h1 style={{ fontSize: 36, marginBottom: 8 }}>SST GLOBALLED</h1>
 
       <p
         style={{
@@ -43,7 +41,7 @@ export default function Home() {
           maxWidth: 320,
         }}
       >
-        {/* Cadastrar Empresas */}
+        {/* Empresas */}
         <Link to="/companies" style={{ textDecoration: "none" }}>
           <button style={btnPrimary}>Cadastrar Empresas</button>
         </Link>
